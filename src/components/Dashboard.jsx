@@ -80,13 +80,21 @@ function Dashboard() {
     const moyenneSemaine = (total / semainesTotal).toFixed(1)
 
     // Temps moyen de réponse
-    const candidaturesAvecReponse = candidatures.filter(c => c.statut !== 'En attente')
+    const candidaturesAvecReponse = candidatures.filter(c => {
+      // Ne garder que les candidatures avec une réponse ET une date de mise à jour valide
+      if (c.statut === 'En attente') return false
+      if (!c.updated_at) return false
+      return true
+    })
+    
     let tempsMoyen = 0
     if (candidaturesAvecReponse.length > 0) {
       const total = candidaturesAvecReponse.reduce((acc, c) => {
         const dateCandidat = new Date(c.date_candidature)
         const dateUpdate = new Date(c.updated_at)
-        return acc + (dateUpdate - dateCandidat) / (24 * 60 * 60 * 1000)
+        const diff = (dateUpdate - dateCandidat) / (24 * 60 * 60 * 1000)
+        // Vérifier que le calcul est valide
+        return acc + (isNaN(diff) ? 0 : diff)
       }, 0)
       tempsMoyen = Math.round(total / candidaturesAvecReponse.length)
     }
