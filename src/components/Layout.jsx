@@ -346,7 +346,7 @@ function Layout() {
           {/* FAB - Bouton Burger flottant (mobile uniquement) */}
           <button
             onClick={() => setIsMobileNavOpen(!isMobileNavOpen)}
-            className="md:hidden fixed top-15 right-6 z-30 w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-full shadow-2xl hover:shadow-purple-500/50 flex items-center justify-center transform hover:scale-110 transition-all duration-300 neon-glow"
+            className="md:hidden fixed top-[100px] right-3 z-30 w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-full shadow-2xl hover:shadow-purple-500/50 flex items-center justify-center transform hover:scale-110 transition-all duration-300 neon-glow"
             aria-label="Navigation"
           >
             {isMobileNavOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
