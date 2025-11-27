@@ -111,62 +111,67 @@ function Layout() {
                   <span>Plus</span>
                 </button>
 
-                {/* Dropdown Menu */}
+                {/* Dropdown Menu - Modern Grid */}
                 {isMenuOpen && (
                   <>
                     <div
                       className="fixed inset-0 z-30"
                       onClick={() => setIsMenuOpen(false)}
                     />
-                    <div className="absolute right-0 top-12 w-48 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-purple-500/20 z-40 overflow-hidden">
-                      <Link
-                        to="/cv"
-                        onClick={() => setIsMenuOpen(false)}
-                        className={`flex items-center space-x-3 px-4 py-3 transition-all duration-300 ${
-                          isActive('/cv')
-                            ? 'bg-purple-500/10 text-purple-700 dark:text-purple-400'
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'
-                        }`}
-                      >
-                        <FileText className="w-4 h-4" />
-                        <span>Générateur CV</span>
-                      </Link>
-                      <Link
-                        to="/import-email"
-                        onClick={() => setIsMenuOpen(false)}
-                        className={`flex items-center space-x-3 px-4 py-3 transition-all duration-300 ${
-                          isActive('/import-email')
-                            ? 'bg-purple-500/10 text-purple-700 dark:text-purple-400'
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'
-                        }`}
-                      >
-                        <Mail className="w-4 h-4" />
-                        <span>Import Email</span>
-                      </Link>
-                      <Link
-                        to="/templates"
-                        onClick={() => setIsMenuOpen(false)}
-                        className={`flex items-center space-x-3 px-4 py-3 transition-all duration-300 ${
-                          isActive('/templates')
-                            ? 'bg-purple-500/10 text-purple-700 dark:text-purple-400'
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'
-                        }`}
-                      >
-                        <Sparkles className="w-4 h-4" />
-                        <span>Templates</span>
-                      </Link>
-                      <Link
-                        to="/linkedin"
-                        onClick={() => setIsMenuOpen(false)}
-                        className={`flex items-center space-x-3 px-4 py-3 transition-all duration-300 ${
-                          isActive('/linkedin')
-                            ? 'bg-purple-500/10 text-purple-700 dark:text-purple-400'
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'
-                        }`}
-                      >
-                        <Linkedin className="w-4 h-4" />
-                        <span>LinkedIn</span>
-                      </Link>
+                    <div className="absolute right-0 top-12 w-80 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-purple-500/20 z-40 p-4 backdrop-blur-xl">
+                      <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-2">
+                        Plus d&apos;options
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Link
+                          to="/cv"
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`group flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300 transform hover:scale-105 ${
+                            isActive('/cv')
+                              ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-500/30'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:shadow-md'
+                          }`}
+                        >
+                          <FileText className={`w-8 h-8 mb-2 ${isActive('/cv') ? 'text-white' : 'text-purple-600 dark:text-purple-400'}`} />
+                          <span className="text-sm font-semibold text-center">CV</span>
+                        </Link>
+                        <Link
+                          to="/import-email"
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`group flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300 transform hover:scale-105 ${
+                            isActive('/import-email')
+                              ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-md'
+                          }`}
+                        >
+                          <Mail className={`w-8 h-8 mb-2 ${isActive('/import-email') ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
+                          <span className="text-sm font-semibold text-center">Email</span>
+                        </Link>
+                        <Link
+                          to="/templates"
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`group flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300 transform hover:scale-105 ${
+                            isActive('/templates')
+                              ? 'bg-gradient-to-br from-pink-500 to-pink-600 text-white shadow-lg shadow-pink-500/30'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-pink-50 dark:hover:bg-pink-900/20 hover:shadow-md'
+                          }`}
+                        >
+                          <Sparkles className={`w-8 h-8 mb-2 ${isActive('/templates') ? 'text-white' : 'text-pink-600 dark:text-pink-400'}`} />
+                          <span className="text-sm font-semibold text-center">Templates</span>
+                        </Link>
+                        <Link
+                          to="/linkedin"
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`group flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300 transform hover:scale-105 ${
+                            isActive('/linkedin')
+                              ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-600/30'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-md'
+                          }`}
+                        >
+                          <Linkedin className={`w-8 h-8 mb-2 ${isActive('/linkedin') ? 'text-white' : 'text-blue-700 dark:text-blue-400'}`} />
+                          <span className="text-sm font-semibold text-center">LinkedIn</span>
+                        </Link>
+                      </div>
                     </div>
                   </>
                 )}
