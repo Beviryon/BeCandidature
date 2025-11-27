@@ -12,6 +12,7 @@ function Layout() {
   const location = useLocation()
   const { theme, toggleTheme } = useTheme()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
 
   const handleLogout = async () => {
     if (DEMO_MODE) {
@@ -207,10 +208,30 @@ function Layout() {
             </div>
           </div>
 
-          {/* Mobile navigation */}
-          <nav className="md:hidden grid grid-cols-3 gap-2 mt-4">
+          {/* Mobile navigation - Dropdown Menu */}
+          {isMobileNavOpen && (
+            <>
+              {/* Overlay */}
+              <div
+                className="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40 animate-fade-in"
+                onClick={() => setIsMobileNavOpen(false)}
+              />
+              {/* Dropdown Menu */}
+              <div className="md:hidden fixed top-20 left-4 right-4 z-50 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 animate-slide-down">
+                <div className="p-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white">Navigation</h3>
+                    <button
+                      onClick={() => setIsMobileNavOpen(false)}
+                      className="p-2 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-all"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <nav className="grid grid-cols-3 gap-3 pb-2">
             <Link
               to="/"
+              onClick={() => setIsMobileNavOpen(false)}
               className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
                 isActive('/')
                   ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
@@ -222,6 +243,7 @@ function Layout() {
             </Link>
             <Link
               to="/candidatures"
+              onClick={() => setIsMobileNavOpen(false)}
               className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
                 isActive('/candidatures')
                   ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
@@ -233,6 +255,7 @@ function Layout() {
             </Link>
             <Link
               to="/calendrier"
+              onClick={() => setIsMobileNavOpen(false)}
               className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
                 isActive('/calendrier')
                   ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
@@ -244,6 +267,7 @@ function Layout() {
             </Link>
             <Link
               to="/cv"
+              onClick={() => setIsMobileNavOpen(false)}
               className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
                 isActive('/cv')
                   ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
@@ -255,6 +279,7 @@ function Layout() {
             </Link>
             <Link
               to="/assistant"
+              onClick={() => setIsMobileNavOpen(false)}
               className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
                 isActive('/assistant')
                   ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
@@ -266,6 +291,7 @@ function Layout() {
             </Link>
             <Link
               to="/scan-offres"
+              onClick={() => setIsMobileNavOpen(false)}
               className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
                 isActive('/scan-offres')
                   ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
@@ -277,6 +303,7 @@ function Layout() {
             </Link>
             <Link
               to="/import-email"
+              onClick={() => setIsMobileNavOpen(false)}
               className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
                 isActive('/import-email')
                   ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
@@ -288,6 +315,7 @@ function Layout() {
             </Link>
             <Link
               to="/templates"
+              onClick={() => setIsMobileNavOpen(false)}
               className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
                 isActive('/templates')
                   ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
@@ -299,6 +327,7 @@ function Layout() {
             </Link>
             <Link
               to="/linkedin"
+              onClick={() => setIsMobileNavOpen(false)}
               className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
                 isActive('/linkedin')
                   ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
@@ -308,7 +337,20 @@ function Layout() {
               <Linkedin className="w-4 h-4 mb-1" />
               <span>LinkedIn</span>
             </Link>
-          </nav>
+                  </nav>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* FAB - Bouton Burger flottant (mobile uniquement) */}
+          <button
+            onClick={() => setIsMobileNavOpen(!isMobileNavOpen)}
+            className="md:hidden fixed top-15 right-6 z-30 w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-full shadow-2xl hover:shadow-purple-500/50 flex items-center justify-center transform hover:scale-110 transition-all duration-300 neon-glow"
+            aria-label="Navigation"
+          >
+            {isMobileNavOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
       </header>
 

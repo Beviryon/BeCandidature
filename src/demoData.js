@@ -1,6 +1,6 @@
 // Mode DÉMO - Données et utilisateur de démonstration
 
-export const DEMO_MODE = true // Mode démo activé par défaut - Désactivez si Firebase est configuré
+export const DEMO_MODE = false // Mode démo activé par défaut - Désactivez si Firebase est configuré
 
 // Utilisateur de démonstration
 export const DEMO_USER = {
