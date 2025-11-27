@@ -43,7 +43,7 @@ function Layout() {
               </div>
             </Link>
 
-            {/* Navigation */}
+            {/* Navigation Desktop */}
             <nav className="hidden md:flex items-center space-x-2 mr-6">
               <Link
                 to="/"
@@ -263,6 +263,28 @@ function Layout() {
             >
               <Bot className="w-4 h-4 mb-1" />
               <span>Assistant</span>
+            </Link>
+            <Link
+              to="/scan-offres"
+              className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
+                isActive('/scan-offres')
+                  ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
+                  : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+              }`}
+            >
+              <Search className="w-4 h-4 mb-1" />
+              <span>Offres</span>
+            </Link>
+            <Link
+              to="/import-email"
+              className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
+                isActive('/import-email')
+                  ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
+                  : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+              }`}
+            >
+              <Mail className="w-4 h-4 mb-1" />
+              <span>Email</span>
             </Link>
             <Link
               to="/templates"
