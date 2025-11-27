@@ -155,7 +155,7 @@ function ModifierCandidature() {
       )}
 
       {/* Form */}
-      <div className="glass-dark rounded-2xl p-8 border border-purple-500/20">
+      <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-8 border border-purple-500/20">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Grid layout for form fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

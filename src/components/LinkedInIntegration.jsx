@@ -93,12 +93,12 @@ function LinkedInIntegration() {
         <h2 className="text-4xl font-bold gradient-text mb-2">
           Intégration LinkedIn
         </h2>
-        <p className="text-gray-400">Importez facilement vos candidatures depuis LinkedIn</p>
+        <p className="text-gray-600 dark:text-gray-400">Importez facilement vos candidatures depuis LinkedIn</p>
       </div>
 
       {/* Mode selection */}
-      <div className="glass-dark rounded-2xl p-6 border border-purple-500/20">
-        <h3 className="text-xl font-bold text-white mb-4">Comment voulez-vous importer ?</h3>
+      <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/30 shadow-lg">
+        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Comment voulez-vous importer ?</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
             onClick={() => setImportMode('manual')}
@@ -108,9 +108,9 @@ function LinkedInIntegration() {
                 : 'border-white/10 hover:border-white/20'
             }`}
           >
-            <Linkedin className="w-12 h-12 text-blue-400 mb-3" />
-            <h4 className="text-lg font-bold text-white mb-2">Import Manuel</h4>
-            <p className="text-sm text-gray-400">
+            <Linkedin className="w-12 h-12 text-blue-500 dark:text-blue-400 mb-3" />
+            <h4 className="text-lg font-bold text-gray-800 dark:text-white mb-2">Import Manuel</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Copiez le lien d'une offre LinkedIn pour l'importer automatiquement
             </p>
           </button>
@@ -120,12 +120,12 @@ function LinkedInIntegration() {
             className={`p-6 rounded-xl border-2 transition-all duration-300 ${
               importMode === 'guide'
                 ? 'border-purple-500 bg-gradient-to-r from-purple-500/20 to-pink-500/20'
-                : 'border-white/10 hover:border-white/20'
+                : 'border-gray-300 dark:border-white/10 hover:border-gray-400 dark:hover:border-white/20'
             }`}
           >
-            <FileText className="w-12 h-12 text-purple-400 mb-3" />
-            <h4 className="text-lg font-bold text-white mb-2">Guide d'utilisation</h4>
-            <p className="text-sm text-gray-400">
+            <FileText className="w-12 h-12 text-purple-600 dark:text-purple-400 mb-3" />
+            <h4 className="text-lg font-bold text-gray-800 dark:text-white mb-2">Guide d'utilisation</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Suivez le guide pour optimiser vos candidatures LinkedIn
             </p>
           </button>
@@ -134,10 +134,10 @@ function LinkedInIntegration() {
 
       {/* Import manuel */}
       {importMode === 'manual' && (
-        <div className="glass-dark rounded-2xl p-6 border border-purple-500/20 space-y-6">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/30 shadow-lg space-y-6">
           <div>
-            <h3 className="text-xl font-bold text-white mb-2">Importer depuis LinkedIn</h3>
-            <p className="text-sm text-gray-400">
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Importer depuis LinkedIn</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Copiez le lien d'une offre d'emploi LinkedIn et collez-le ci-dessous
             </p>
           </div>
@@ -145,14 +145,14 @@ function LinkedInIntegration() {
           {!parsedData ? (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Lien LinkedIn de l'offre
                 </label>
                 <input
                   type="url"
                   value={linkedinUrl}
                   onChange={(e) => setLinkedinUrl(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   placeholder="https://www.linkedin.com/jobs/view/..."
                 />
               </div>
@@ -170,62 +170,62 @@ function LinkedInIntegration() {
             <div className="space-y-4">
               <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
                 <div className="flex items-center space-x-2 mb-3">
-                  <CheckCircle className="w-5 h-5 text-green-400" />
-                  <span className="font-semibold text-green-300">Lien analysé avec succès !</span>
+                  <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  <span className="font-semibold text-green-700 dark:text-green-300">Lien analysé avec succès !</span>
                 </div>
-                <p className="text-sm text-gray-300">
+                <p className="text-sm text-gray-700 dark:text-gray-300">
                   Complétez les informations ci-dessous avant d'importer
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Entreprise *
                   </label>
                   <input
                     type="text"
                     value={parsedData.entreprise}
                     onChange={(e) => setParsedData({...parsedData, entreprise: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Poste *
                   </label>
                   <input
                     type="text"
                     value={parsedData.poste}
                     onChange={(e) => setParsedData({...parsedData, poste: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Date de candidature
                   </label>
                   <input
                     type="date"
                     value={parsedData.date_candidature}
                     onChange={(e) => setParsedData({...parsedData, date_candidature: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Contact (optionnel)
                   </label>
                   <input
                     type="text"
                     value={parsedData.contact}
                     onChange={(e) => setParsedData({...parsedData, contact: e.target.value})}
-                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Nom du recruteur"
                   />
                 </div>
@@ -237,7 +237,7 @@ function LinkedInIntegration() {
                     setParsedData(null)
                     setLinkedinUrl('')
                   }}
-                  className="flex-1 px-6 py-3 bg-white/5 hover:bg-white/10 text-gray-300 rounded-xl transition-all"
+                  className="flex-1 px-6 py-3 bg-gray-200 dark:bg-white/5 hover:bg-gray-300 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 rounded-xl transition-all"
                 >
                   Recommencer
                 </button>
@@ -271,10 +271,10 @@ function LinkedInIntegration() {
 
       {/* Guide */}
       {importMode === 'guide' && (
-        <div className="glass-dark rounded-2xl p-6 border border-purple-500/20 space-y-6">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/30 shadow-lg space-y-6">
           <div>
-            <h3 className="text-xl font-bold text-white mb-2">Guide LinkedIn</h3>
-            <p className="text-sm text-gray-400">
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Guide LinkedIn</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Maximisez vos chances avec ces conseils
             </p>
           </div>
@@ -286,8 +286,8 @@ function LinkedInIntegration() {
                   1
                 </div>
                 <div>
-                  <h4 className="font-semibold text-blue-300 mb-2">Optimisez votre profil</h4>
-                  <ul className="text-sm text-gray-300 space-y-1">
+                  <h4 className="font-semibold text-blue-700 dark:text-blue-300 mb-2">Optimisez votre profil</h4>
+                  <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
                     <li>• Photo professionnelle</li>
                     <li>• Titre accrocheur avec mots-clés</li>
                     <li>• Résumé détaillé avec vos compétences</li>
@@ -303,8 +303,8 @@ function LinkedInIntegration() {
                   2
                 </div>
                 <div>
-                  <h4 className="font-semibold text-purple-300 mb-2">Personnalisez vos candidatures</h4>
-                  <ul className="text-sm text-gray-300 space-y-1">
+                  <h4 className="font-semibold text-purple-700 dark:text-purple-300 mb-2">Personnalisez vos candidatures</h4>
+                  <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
                     <li>• Mentionnez l'entreprise et le poste précis</li>
                     <li>• Adaptez votre message au recruteur</li>
                     <li>• Mettez en avant les compétences pertinentes</li>
@@ -320,8 +320,8 @@ function LinkedInIntegration() {
                   3
                 </div>
                 <div>
-                  <h4 className="font-semibold text-green-300 mb-2">Réseau et engagement</h4>
-                  <ul className="text-sm text-gray-300 space-y-1">
+                  <h4 className="font-semibold text-green-700 dark:text-green-300 mb-2">Réseau et engagement</h4>
+                  <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
                     <li>• Connectez-vous avec les RH</li>
                     <li>• Commentez les posts des entreprises cibles</li>
                     <li>• Partagez du contenu pertinent</li>
@@ -337,8 +337,8 @@ function LinkedInIntegration() {
                   4
                 </div>
                 <div>
-                  <h4 className="font-semibold text-orange-300 mb-2">Suivez vos candidatures</h4>
-                  <ul className="text-sm text-gray-300 space-y-1">
+                  <h4 className="font-semibold text-orange-700 dark:text-orange-300 mb-2">Suivez vos candidatures</h4>
+                  <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
                     <li>• Relancez après 7 jours</li>
                     <li>• Utilisez les templates de messages</li>
                     <li>• Trackez tout dans BeCandidature</li>

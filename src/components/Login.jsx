@@ -52,7 +52,7 @@ function Login() {
 
       <div className="relative w-full max-w-md animate-scale-in">
         {/* Glass card */}
-        <div className="glass-dark rounded-3xl shadow-2xl p-8 border border-purple-500/20 backdrop-blur-xl">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-2xl rounded-3xl p-8 border border-purple-500/30">
           {/* Logo section */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 mb-4 neon-glow">

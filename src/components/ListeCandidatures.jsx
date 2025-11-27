@@ -239,7 +239,7 @@ function ListeCandidatures() {
 
   if (error) {
     return (
-      <div className="glass-dark rounded-2xl p-6 border border-red-500/30 animate-fade-in">
+      <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-red-500/30 animate-fade-in">
         <div className="flex items-center space-x-3 text-red-400">
           <AlertCircle className="w-6 h-6" />
           <span>Erreur : {error}</span>
@@ -278,7 +278,7 @@ function ListeCandidatures() {
           <h2 className="text-4xl font-bold gradient-text mb-2">
             Mes Candidatures
           </h2>
-          <p className="text-gray-400">Gérez et suivez toutes vos candidatures</p>
+          <p className="text-gray-600 dark:text-gray-400">Gérez et suivez toutes vos candidatures</p>
         </div>
         <Link
           to="/ajouter"
@@ -291,41 +291,41 @@ function ListeCandidatures() {
 
       {/* Statistics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="glass-dark rounded-2xl p-6 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-purple-500/20">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-purple-500/20">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-400 mb-1">Total</p>
-              <p className="text-3xl font-bold text-white">{stats.total}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total</p>
+              <p className="text-3xl font-bold text-purple-700 dark:text-white">{stats.total}</p>
             </div>
             <TrendingUp className="w-10 h-10 text-purple-400" />
           </div>
         </div>
 
-        <div className="glass-dark rounded-2xl p-6 border border-green-500/20 hover:border-green-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-green-500/20">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-green-500/20 hover:border-green-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-green-500/20">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-400 mb-1">Entretiens</p>
-              <p className="text-3xl font-bold text-green-400">{stats.entretien}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Entretiens</p>
+              <p className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.entretien}</p>
             </div>
             <CheckCircle className="w-10 h-10 text-green-400" />
           </div>
         </div>
 
-        <div className="glass-dark rounded-2xl p-6 border border-orange-500/20 hover:border-orange-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-orange-500/20">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-orange-500/20 hover:border-orange-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-orange-500/20">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-400 mb-1">En attente</p>
-              <p className="text-3xl font-bold text-orange-400">{stats.attente}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">En attente</p>
+              <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.attente}</p>
             </div>
             <Clock className="w-10 h-10 text-orange-400" />
           </div>
         </div>
 
-        <div className="glass-dark rounded-2xl p-6 border border-red-500/20 hover:border-red-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-red-500/20">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-red-500/20 hover:border-red-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-red-500/20">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-400 mb-1">Refus</p>
-              <p className="text-3xl font-bold text-red-400">{stats.refus}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Refus</p>
+              <p className="text-3xl font-bold text-red-600 dark:text-red-400">{stats.refus}</p>
             </div>
             <XCircle className="w-10 h-10 text-red-400" />
           </div>
@@ -334,7 +334,7 @@ function ListeCandidatures() {
 
       {/* Filters */}
       {candidatures.length > 0 && (
-        <div className="glass-dark rounded-2xl p-6 border border-purple-500/20 space-y-4">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-purple-500/20 space-y-4">
           <div className="flex items-center space-x-2 text-gray-300 mb-4">
             <Filter className="w-5 h-5 text-purple-400" />
             <h3 className="font-semibold">Filtres</h3>
@@ -404,7 +404,7 @@ function ListeCandidatures() {
 
       {/* Export buttons */}
       {candidatures.length > 0 && (
-        <div className="glass-dark rounded-2xl p-6 border border-purple-500/20">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-purple-500/20">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
               <h3 className="font-semibold text-gray-300 mb-1">Exporter vos données</h3>
@@ -435,7 +435,7 @@ function ListeCandidatures() {
 
       {/* Candidatures list */}
       {candidatures.length === 0 ? (
-        <div className="glass-dark rounded-2xl p-12 text-center border border-purple-500/20 animate-fade-in">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-12 text-center border border-purple-500/20 animate-fade-in">
           <Briefcase className="w-20 h-20 text-gray-600 mx-auto mb-4" />
           <h3 className="text-2xl font-bold text-gray-300 mb-2">
             Aucune candidature
@@ -452,7 +452,7 @@ function ListeCandidatures() {
           </Link>
         </div>
       ) : filteredCandidatures.length === 0 ? (
-        <div className="glass-dark rounded-2xl p-12 text-center border border-purple-500/20 animate-fade-in">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-12 text-center border border-purple-500/20 animate-fade-in">
           <Search className="w-20 h-20 text-gray-600 mx-auto mb-4" />
           <h3 className="text-2xl font-bold text-gray-300 mb-2">
             Aucun résultat
@@ -481,7 +481,7 @@ function ListeCandidatures() {
             return (
               <div
                 key={candidature.id}
-                className="glass-dark rounded-2xl p-6 border border-white/10 hover:border-purple-500/30 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl animate-fade-in"
+                className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-white/10 hover:border-purple-500/30 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl animate-fade-in"
                 style={{ animationDelay: `${index * 0.1}s` }}
               >
                 {/* Header */}

@@ -143,7 +143,7 @@ function Dashboard() {
 
   if (!analytics) {
     return (
-      <div className="glass-dark rounded-2xl p-12 text-center border border-purple-500/20">
+      <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-12 text-center border border-purple-500/30 shadow-lg">
         <BarChart3 className="w-20 h-20 text-gray-600 mx-auto mb-4" />
         <h3 className="text-2xl font-bold text-gray-300 mb-2">
           Pas encore de données
@@ -167,62 +167,62 @@ function Dashboard() {
 
       {/* KPIs principaux */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="glass-dark rounded-2xl p-6 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 transform hover:scale-105">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/30 hover:border-purple-500/50 transition-all duration-300 transform hover:scale-105 shadow-lg">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-purple-500/20 rounded-xl">
-              <Target className="w-6 h-6 text-purple-400" />
+              <Target className="w-6 h-6 text-purple-600 dark:text-purple-400" />
             </div>
             <div className="text-right">
-              <div className="text-3xl font-bold text-white">{analytics.total}</div>
-              <div className="text-sm text-gray-400">Candidatures</div>
+              <div className="text-3xl font-bold text-purple-700 dark:text-white">{analytics.total}</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Candidatures</div>
             </div>
           </div>
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
             {analytics.moyenneSemaine} / semaine en moyenne
           </div>
         </div>
 
-        <div className="glass-dark rounded-2xl p-6 border border-green-500/20 hover:border-green-500/40 transition-all duration-300 transform hover:scale-105">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-green-500/30 hover:border-green-500/50 transition-all duration-300 transform hover:scale-105 shadow-lg">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-green-500/20 rounded-xl">
-              <TrendingUp className="w-6 h-6 text-green-400" />
+              <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
             <div className="text-right">
-              <div className="text-3xl font-bold text-green-400">{analytics.tauxReussite}%</div>
-              <div className="text-sm text-gray-400">Taux de réussite</div>
+              <div className="text-3xl font-bold text-green-600 dark:text-green-400">{analytics.tauxReussite}%</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Taux de réussite</div>
             </div>
           </div>
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
             {analytics.entretiens} entretien(s) obtenus
           </div>
         </div>
 
-        <div className="glass-dark rounded-2xl p-6 border border-orange-500/20 hover:border-orange-500/40 transition-all duration-300 transform hover:scale-105">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-orange-500/30 hover:border-orange-500/50 transition-all duration-300 transform hover:scale-105 shadow-lg">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-orange-500/20 rounded-xl">
-              <Clock className="w-6 h-6 text-orange-400" />
+              <Clock className="w-6 h-6 text-orange-600 dark:text-orange-400" />
             </div>
             <div className="text-right">
-              <div className="text-3xl font-bold text-orange-400">{analytics.tempsMoyen}</div>
-              <div className="text-sm text-gray-400">Jours de réponse</div>
+              <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">{analytics.tempsMoyen}</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Jours de réponse</div>
             </div>
           </div>
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
             Temps moyen de réponse
           </div>
         </div>
 
-        <div className="glass-dark rounded-2xl p-6 border border-red-500/20 hover:border-red-500/40 transition-all duration-300 transform hover:scale-105">
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-red-500/30 hover:border-red-500/50 transition-all duration-300 transform hover:scale-105 shadow-lg">
           <div className="flex items-center justify-between mb-4">
             <div className="p-3 bg-red-500/20 rounded-xl">
-              <AlertCircle className="w-6 h-6 text-red-400" />
+              <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
             </div>
             <div className="text-right">
-              <div className="text-3xl font-bold text-red-400">{analytics.aRelancer}</div>
-              <div className="text-sm text-gray-400">À relancer</div>
+              <div className="text-3xl font-bold text-red-600 dark:text-red-400">{analytics.aRelancer}</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">À relancer</div>
             </div>
           </div>
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
             Plus de 7 jours sans réponse
           </div>
         </div>
@@ -231,9 +231,9 @@ function Dashboard() {
       {/* Graphiques */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Graphique en donut */}
-        <div className="glass-dark rounded-2xl p-6 border border-purple-500/20">
-          <h3 className="text-xl font-bold text-white mb-4 flex items-center">
-            <BarChart3 className="w-5 h-5 mr-2 text-purple-400" />
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/30 shadow-lg">
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center">
+            <BarChart3 className="w-5 h-5 mr-2 text-purple-600 dark:text-purple-400" />
             Répartition des statuts
           </h3>
           <ResponsiveContainer width="100%" height={250}>
@@ -265,9 +265,9 @@ function Dashboard() {
         </div>
 
         {/* Graphique d'évolution */}
-        <div className="glass-dark rounded-2xl p-6 border border-purple-500/20">
-          <h3 className="text-xl font-bold text-white mb-4 flex items-center">
-            <TrendingUp className="w-5 h-5 mr-2 text-purple-400" />
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/30 shadow-lg">
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center">
+            <TrendingUp className="w-5 h-5 mr-2 text-purple-600 dark:text-purple-400" />
             Évolution des candidatures
           </h3>
           <ResponsiveContainer width="100%" height={250}>
@@ -302,19 +302,19 @@ function Dashboard() {
       </div>
 
       {/* Insights IA */}
-      <div className="glass-dark rounded-2xl p-6 border border-blue-500/20">
-        <h3 className="text-xl font-bold text-white mb-4 flex items-center">
-          <Brain className="w-5 h-5 mr-2 text-blue-400" />
+      <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-blue-500/30 shadow-lg">
+        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center">
+          <Brain className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
           Insights & Recommandations
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {analytics.tauxReussite >= 30 ? (
             <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
               <div className="flex items-start space-x-3">
-                <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-green-300 mb-1">Excellent taux de réussite !</div>
-                  <div className="text-sm text-gray-300">
+                  <div className="font-semibold text-green-700 dark:text-green-300 mb-1">Excellent taux de réussite !</div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
                     Votre taux de {analytics.tauxReussite}% est au-dessus de la moyenne. Continuez ainsi !
                   </div>
                 </div>
@@ -323,10 +323,10 @@ function Dashboard() {
           ) : (
             <div className="p-4 bg-orange-500/10 border border-orange-500/30 rounded-xl">
               <div className="flex items-start space-x-3">
-                <Zap className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
+                <Zap className="w-5 h-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-orange-300 mb-1">Optimisez votre approche</div>
-                  <div className="text-sm text-gray-300">
+                  <div className="font-semibold text-orange-700 dark:text-orange-300 mb-1">Optimisez votre approche</div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
                     Personnalisez davantage vos candidatures pour améliorer votre taux de réussite.
                   </div>
                 </div>
@@ -337,10 +337,10 @@ function Dashboard() {
           {analytics.recenteCandidatures > 0 ? (
             <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
               <div className="flex items-start space-x-3">
-                <Calendar className="w-5 h-5 text-purple-400 flex-shrink-0 mt-0.5" />
+                <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-purple-300 mb-1">Bonne activité récente</div>
-                  <div className="text-sm text-gray-300">
+                  <div className="font-semibold text-purple-700 dark:text-purple-300 mb-1">Bonne activité récente</div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
                     {analytics.recenteCandidatures} candidature(s) envoyée(s) cette semaine. Gardez le rythme !
                   </div>
                 </div>
@@ -349,10 +349,10 @@ function Dashboard() {
           ) : (
             <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
               <div className="flex items-start space-x-3">
-                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-red-300 mb-1">Augmentez votre activité</div>
-                  <div className="text-sm text-gray-300">
+                  <div className="font-semibold text-red-700 dark:text-red-300 mb-1">Augmentez votre activité</div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
                     Aucune candidature cette semaine. Fixez-vous un objectif quotidien !
                   </div>
                 </div>
@@ -363,10 +363,10 @@ function Dashboard() {
           {analytics.aRelancer > 0 && (
             <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
               <div className="flex items-start space-x-3">
-                <Clock className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-yellow-300 mb-1">Relances nécessaires</div>
-                  <div className="text-sm text-gray-300">
+                  <div className="font-semibold text-yellow-700 dark:text-yellow-300 mb-1">Relances nécessaires</div>
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
                     {analytics.aRelancer} candidature(s) à relancer. Un suivi régulier augmente vos chances !
                   </div>
                 </div>
@@ -376,10 +376,10 @@ function Dashboard() {
 
           <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
             <div className="flex items-start space-x-3">
-              <Award className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+              <Award className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
               <div>
-                <div className="font-semibold text-blue-300 mb-1">Conseil du jour</div>
-                <div className="text-sm text-gray-300">
+                <div className="font-semibold text-blue-700 dark:text-blue-300 mb-1">Conseil du jour</div>
+                <div className="text-sm text-gray-700 dark:text-gray-300">
                   {analytics.tempsMoyen < 7 
                     ? "Les entreprises répondent vite ! Relancez après 5-7 jours."
                     : "Relancez toujours après 7 jours, cela montre votre motivation."}

@@ -9,6 +9,11 @@ import ListeCandidatures from './components/ListeCandidatures'
 import AjouterCandidature from './components/AjouterCandidature'
 import ModifierCandidature from './components/ModifierCandidature'
 import Dashboard from './components/Dashboard'
+import Calendrier from './components/Calendrier'
+import CVGenerator from './components/CVGenerator'
+import AssistantIA from './components/AssistantIA'
+import EmailImport from './components/EmailImport'
+import JobScanner from './components/JobScanner'
 import Templates from './components/Templates'
 import LinkedInIntegration from './components/LinkedInIntegration'
 import Layout from './components/Layout'
@@ -58,6 +63,11 @@ function App() {
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/candidatures" element={<ListeCandidatures />} />
+            <Route path="/calendrier" element={<Calendrier />} />
+            <Route path="/cv" element={<CVGenerator />} />
+            <Route path="/assistant" element={<AssistantIA />} />
+            <Route path="/import-email" element={<EmailImport />} />
+            <Route path="/scan-offres" element={<JobScanner />} />
             <Route path="/ajouter" element={<AjouterCandidature />} />
             <Route path="/modifier/:id" element={<ModifierCandidature />} />
             <Route path="/templates" element={<Templates />} />
