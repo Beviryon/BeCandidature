@@ -4,6 +4,7 @@ import { Mail, Lock, LogIn, Sparkles, AlertCircle } from 'lucide-react'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { auth } from '../firebaseConfig'
 import { DEMO_MODE, DEMO_USER } from '../demoData'
+import { handleFirebaseError } from '../utils/firebaseErrors'
 
 function Login() {
   const [email, setEmail] = useState('')
@@ -35,7 +36,7 @@ function Login() {
       await signInWithEmailAndPassword(auth, email, password)
       navigate('/')
     } catch (error) {
-      setError(error.message)
+      setError(handleFirebaseError(error))
     } finally {
       setLoading(false)
     }

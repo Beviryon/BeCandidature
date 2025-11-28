@@ -1,11 +1,12 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
-import { LogOut, Plus, List, BarChart3, Calendar, Bot, Search, Sparkles, FileText, Mail, MessageSquare, Linkedin, Menu, X, Moon, Sun } from 'lucide-react'
+import { LogOut, Plus, List, BarChart3, Calendar, Bot, Search, Sparkles, FileText, Mail, MessageSquare, Linkedin, Menu, X, Moon, Sun, Shield } from 'lucide-react'
 import { signOut } from 'firebase/auth'
-import { auth } from '../firebaseConfig'
+import { doc, getDoc } from 'firebase/firestore'
+import { auth, db } from '../firebaseConfig'
 import { DEMO_MODE } from '../demoData'
 import { useTheme } from '../hooks/useTheme'
 import NotificationCenter from './NotificationCenter'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 function Layout() {
   const navigate = useNavigate()
@@ -13,6 +14,23 @@ function Layout() {
   const { theme, toggleTheme } = useTheme()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
+  const [userRole, setUserRole] = useState('user')
+
+  useEffect(() => {
+    const loadUserRole = async () => {
+      if (!DEMO_MODE && auth.currentUser) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid))
+          if (userDoc.exists()) {
+            setUserRole(userDoc.data().role || 'user')
+          }
+        } catch (error) {
+          console.error('Erreur chargement rôle:', error)
+        }
+      }
+    }
+    loadUserRole()
+  }, [])
 
   const handleLogout = async () => {
     if (DEMO_MODE) {
@@ -172,6 +190,22 @@ function Layout() {
                           <Linkedin className={`w-8 h-8 mb-2 ${isActive('/linkedin') ? 'text-white' : 'text-blue-700 dark:text-blue-400'}`} />
                           <span className="text-sm font-semibold text-center">LinkedIn</span>
                         </Link>
+                        
+                        {/* Lien Admin (uniquement pour les admins) */}
+                        {userRole === 'admin' && (
+                          <Link
+                            to="/admin"
+                            onClick={() => setIsMenuOpen(false)}
+                            className={`group col-span-2 flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 ${
+                              isActive('/admin')
+                                ? 'bg-gradient-to-br from-red-500 to-orange-500 text-white shadow-lg shadow-red-500/30 border-red-500'
+                                : 'bg-gradient-to-br from-red-500/10 to-orange-500/10 text-red-700 dark:text-red-400 hover:from-red-500/20 hover:to-orange-500/20 hover:shadow-md border-red-500/30'
+                            }`}
+                          >
+                            <Shield className={`w-8 h-8 mb-2 ${isActive('/admin') ? 'text-white' : 'text-red-600 dark:text-red-400'}`} />
+                            <span className="text-sm font-semibold text-center">🔐 Admin Dashboard</span>
+                          </Link>
+                        )}
                       </div>
                     </div>
                   </>

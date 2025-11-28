@@ -2,7 +2,10 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Mail, Lock, UserPlus, Sparkles, AlertCircle, CheckCircle } from 'lucide-react'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
-import { auth } from '../firebaseConfig'
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { auth, db } from '../firebaseConfig'
+import { sendWelcomeEmail } from '../services/emailService'
+import { handleFirebaseError } from '../utils/firebaseErrors'
 
 function Register() {
   const [email, setEmail] = useState('')
@@ -18,24 +21,42 @@ function Register() {
     setError(null)
 
     if (password !== confirmPassword) {
-      setError('Les mots de passe ne correspondent pas')
+      setError('❌ Les mots de passe ne correspondent pas. Veuillez vérifier.')
       return
     }
 
     if (password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères')
+      setError('❌ Le mot de passe doit contenir au moins 6 caractères.')
       return
     }
 
     setLoading(true)
 
     try {
-      await createUserWithEmailAndPassword(auth, email, password)
+      // Créer le compte Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      const user = userCredential.user
+      
+      // Créer le document utilisateur dans Firestore avec statut "pending"
+      await setDoc(doc(db, 'users', user.uid), {
+        email: user.email,
+        status: 'pending', // En attente d'approbation
+        role: 'user',
+        createdAt: serverTimestamp(),
+        approvedAt: null,
+        approvedBy: null
+      })
+      
+      // Envoyer l'email de bienvenue
+      await sendWelcomeEmail({
+        name: user.email.split('@')[0], // Utilise la partie avant @ comme nom
+        email: user.email
+      })
       
       setSuccess(true)
       setTimeout(() => navigate('/login'), 2000)
     } catch (error) {
-      setError(error.message)
+      setError(handleFirebaseError(error))
     } finally {
       setLoading(false)
     }
@@ -77,9 +98,12 @@ function Register() {
           {/* Success message */}
           {success && (
             <div className="mb-6 p-4 rounded-xl bg-green-500/10 border border-green-500/30 animate-fade-in">
-              <div className="flex items-center space-x-2">
-                <CheckCircle className="w-5 h-5 text-green-400" />
-                <span className="text-sm text-green-300">Inscription réussie ! Redirection...</span>
+              <div className="flex items-start space-x-2">
+                <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-green-300">
+                  <div className="font-semibold mb-1">✅ Inscription réussie !</div>
+                  <div className="text-xs">Votre compte est en attente d'approbation. Vous recevrez un email de confirmation.</div>
+                </div>
               </div>
             </div>
           )}
