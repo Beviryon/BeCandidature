@@ -4,7 +4,7 @@ import { Mail, Lock, UserPlus, Sparkles, AlertCircle, CheckCircle } from 'lucide
 import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from '../firebaseConfig'
-import { sendWelcomeEmail } from '../services/emailService'
+import { sendWelcomeEmail, sendAdminNotification } from '../services/emailService'
 import { handleFirebaseError } from '../utils/firebaseErrors'
 
 function Register() {
@@ -47,9 +47,15 @@ function Register() {
         approvedBy: null
       })
       
-      // Envoyer l'email de bienvenue
+      // Envoyer l'email de bienvenue à l'utilisateur
       await sendWelcomeEmail({
         name: user.email.split('@')[0], // Utilise la partie avant @ comme nom
+        email: user.email
+      })
+      
+      // Envoyer une notification à l'admin
+      await sendAdminNotification({
+        name: user.email.split('@')[0],
         email: user.email
       })
       
