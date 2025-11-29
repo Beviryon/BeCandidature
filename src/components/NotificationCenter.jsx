@@ -34,19 +34,40 @@ function NotificationCenter() {
   }
 
   const requestNotificationPermission = async () => {
-    if (!('Notification' in window)) {
-      alert('Votre navigateur ne supporte pas les notifications desktop.')
-      return
-    }
+    try {
+      // Vérifier si le navigateur supporte les notifications
+      if (!('Notification' in window)) {
+        alert('❌ Votre navigateur ne supporte pas les notifications desktop.\n\nLes notifications fonctionnent sur :\n- Chrome/Edge (Desktop & Android)\n- Firefox (Desktop & Android)\n- Safari (Desktop uniquement)')
+        return
+      }
 
-    const permission = await Notification.requestPermission()
-    setNotificationsEnabled(permission === 'granted')
-    
-    if (permission === 'granted') {
-      showNotification(
-        '🎉 Notifications activées !',
-        'Vous recevrez désormais des rappels pour vos relances.'
-      )
+      // Vérifier si on est en HTTPS (requis pour les notifications)
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        alert('❌ Les notifications nécessitent une connexion HTTPS sécurisée.')
+        return
+      }
+
+      console.log('🔔 Demande de permission pour les notifications...')
+      
+      const permission = await Notification.requestPermission()
+      console.log('📋 Permission reçue:', permission)
+      
+      setNotificationsEnabled(permission === 'granted')
+      
+      if (permission === 'granted') {
+        console.log('✅ Notifications activées avec succès')
+        showNotification(
+          '🎉 Notifications activées !',
+          'Vous recevrez désormais des rappels pour vos relances.'
+        )
+      } else if (permission === 'denied') {
+        alert('❌ Vous avez refusé les notifications.\n\nPour les activer :\n1. Cliquez sur le cadenas 🔒 dans la barre d\'adresse\n2. Autorisez les notifications\n3. Rechargez la page')
+      } else {
+        console.log('⚠️ Permission non accordée:', permission)
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de la demande de permission:', error)
+      alert(`❌ Erreur lors de l'activation des notifications.\n\nDétails: ${error.message}\n\nVérifiez les paramètres de votre navigateur.`)
     }
   }
 
@@ -76,7 +97,8 @@ function NotificationCenter() {
     localStorage.setItem('lastNotificationCheck', today)
 
     const candidaturesARelancer = candidatures.filter(c => {
-      if (c.statut !== 'En attente') return false
+      // Ne relancer que les candidatures "En attente" ou "Entretien", PAS les "Refus"
+      if (c.statut !== 'En attente' && c.statut !== 'Entretien') return false
       
       const dateRelance = new Date(c.date_relance)
       const dateCandidature = new Date(c.date_candidature)
@@ -133,13 +155,26 @@ function NotificationCenter() {
   }
 
   const showNotification = (title, body) => {
-    if (notificationsEnabled && 'Notification' in window) {
-      new Notification(title, {
-        body,
-        icon: '/vite.svg',
-        badge: '/vite.svg',
-        tag: 'becandidature'
-      })
+    try {
+      if (notificationsEnabled && 'Notification' in window && Notification.permission === 'granted') {
+        const notification = new Notification(title, {
+          body,
+          icon: '/vite.svg',
+          badge: '/vite.svg',
+          tag: 'becandidature',
+          requireInteraction: false,
+          silent: false
+        })
+        
+        // Auto-fermer après 5 secondes
+        setTimeout(() => notification.close(), 5000)
+        
+        console.log('✅ Notification affichée:', title)
+      } else {
+        console.log('⚠️ Notifications non activées ou non autorisées')
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'affichage de la notification:', error)
     }
   }
 
@@ -197,7 +232,7 @@ function NotificationCenter() {
             className="fixed inset-0 z-40"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute right-0 top-14 w-96 max-h-[600px] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-purple-500/20 z-50 overflow-hidden">
+          <div className="fixed md:absolute left-4 right-4 md:left-auto md:right-0 top-20 md:top-14 w-auto md:w-96 max-h-[80vh] md:max-h-[600px] bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-purple-500/20 z-50 overflow-hidden">
             {/* Header */}
             <div className="p-4 border-b border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-black/40">
               <div className="flex items-center justify-between mb-3">

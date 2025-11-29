@@ -88,8 +88,13 @@ function ModifierCandidature() {
     setLoading(true)
 
     try {
-      const dateRelance = new Date(formData.date_candidature)
-      dateRelance.setDate(dateRelance.getDate() + 7)
+      // Calculer la date de relance uniquement pour "En attente" et "Entretien", pas pour "Refus"
+      let dateRelance = ''
+      if (formData.statut === 'En attente' || formData.statut === 'Entretien') {
+        const relanceDate = new Date(formData.date_candidature)
+        relanceDate.setDate(relanceDate.getDate() + 7)
+        dateRelance = relanceDate.toISOString().split('T')[0]
+      }
 
       if (DEMO_MODE) {
         const candidatures = getDemoCandidatures()
@@ -99,7 +104,7 @@ function ModifierCandidature() {
           candidatures[index] = {
             ...candidatures[index],
             ...formData,
-            date_relance: dateRelance.toISOString().split('T')[0],
+            date_relance: dateRelance,
             updated_at: new Date().toISOString()
           }
           saveDemoCandidatures(candidatures)
@@ -112,7 +117,7 @@ function ModifierCandidature() {
       // Firebase
       await updateCandidature(id, {
         ...formData,
-        date_relance: dateRelance.toISOString().split('T')[0],
+        date_relance: dateRelance,
       })
       
       navigate('/candidatures')
