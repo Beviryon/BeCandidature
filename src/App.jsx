@@ -4,6 +4,7 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from './firebaseConfig'
 import { DEMO_MODE } from './demoData'
+import { migrateLocalStorageToFirestore } from './utils/migrateLocalStorage'
 import Login from './components/Login'
 import Register from './components/Register'
 import PendingApproval from './components/PendingApproval'
@@ -72,6 +73,19 @@ function App() {
             })
             setUserStatus('active')
             setUserRole('user')
+          }
+          
+          // Migration automatique des données localStorage → Firestore
+          if (!DEMO_MODE) {
+            try {
+              const migrationResult = await migrateLocalStorageToFirestore()
+              if (migrationResult.success && migrationResult.count > 0) {
+                console.log(`✅ ${migrationResult.count} candidatures migrées depuis localStorage`);
+              }
+            } catch (migrationError) {
+              console.error('❌ Erreur migration:', migrationError);
+              // Ne pas bloquer l'utilisateur si la migration échoue
+            }
           }
         } catch (error) {
           console.error('Erreur chargement statut:', error)
