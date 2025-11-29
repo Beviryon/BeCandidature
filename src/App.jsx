@@ -5,6 +5,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from './firebaseConfig'
 import { DEMO_MODE } from './demoData'
 import { migrateLocalStorageToFirestore } from './utils/migrateLocalStorage'
+import OnboardingTour from './components/OnboardingTour'
 import Login from './components/Login'
 import Register from './components/Register'
 import PendingApproval from './components/PendingApproval'
@@ -30,6 +31,7 @@ function App() {
   const [suspensionReason, setSuspensionReason] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showStatusModal, setShowStatusModal] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
     // Vérifier d'abord la session DÉMO
@@ -87,6 +89,12 @@ function App() {
               // Ne pas bloquer l'utilisateur si la migration échoue
             }
           }
+          
+          // Vérifier si c'est la première connexion pour afficher l'onboarding
+          const hasSeenOnboarding = localStorage.getItem(`onboarding_seen_${user.uid}`)
+          if (!hasSeenOnboarding) {
+            setShowOnboarding(true)
+          }
         } catch (error) {
           console.error('Erreur chargement statut:', error)
           // En cas d'erreur, considérer comme actif pour ne pas bloquer les anciens utilisateurs
@@ -101,6 +109,13 @@ function App() {
     return () => unsubscribe()
   }, [])
 
+  const handleOnboardingComplete = () => {
+    if (session) {
+      localStorage.setItem(`onboarding_seen_${session.uid}`, 'true')
+      setShowOnboarding(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -111,6 +126,11 @@ function App() {
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      {/* Onboarding Tour - S'affiche uniquement à la première connexion */}
+      {showOnboarding && session && userStatus === 'active' && (
+        <OnboardingTour onComplete={handleOnboardingComplete} />
+      )}
+      
       {/* Modal de statut (suspendu, rejeté) */}
       {showStatusModal && (userStatus === 'suspended' || userStatus === 'rejected') && (
         <StatusModal 
