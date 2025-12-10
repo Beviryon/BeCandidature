@@ -18,7 +18,8 @@ import {
   Mail,
   FileCheck,
   Send,
-  Plus
+  Plus,
+  ExternalLink
 } from 'lucide-react'
 import { useCandidatures } from '../hooks/useCandidatures'
 import Loading from './Loading'
@@ -140,6 +141,24 @@ function CandidatureDetail() {
         created_at: new Date().toISOString()
       }
 
+      // Synchroniser avec Google Calendar si connecté
+      if (isGoogleAuthenticated()) {
+        try {
+          await initializeGoogleCalendar()
+          const event = await createCalendarEvent({
+            ...newRelance,
+            entreprise: candidature.entreprise,
+            poste: candidature.poste,
+            id: `${candidature.id}-${relanceDate}`
+          })
+          newRelance.calendar_event_id = event.id
+          newRelance.calendar_link = event.htmlLink
+        } catch (calendarError) {
+          console.error('Error syncing with calendar:', calendarError)
+          // Ne pas bloquer l'ajout de la relance si la sync échoue
+        }
+      }
+
       const updatedRelances = [...(candidature.relances || []), newRelance]
       
       // Mettre à jour aussi la date_relance avec la dernière relance
@@ -160,7 +179,12 @@ function CandidatureDetail() {
       setRelanceNote('')
       setRelanceType('Email')
       setShowRelanceForm(false)
-      success('Relance ajoutée à l\'historique')
+      
+      if (newRelance.calendar_event_id) {
+        success('Relance ajoutée et synchronisée avec votre calendrier !')
+      } else {
+        success('Relance ajoutée à l\'historique')
+      }
     } catch (err) {
       showError(err.message || 'Erreur lors de l\'ajout de la relance')
     } finally {
@@ -448,12 +472,31 @@ function CandidatureDetail() {
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-gray-400">
-                        {formatDate(relanceDate)}
+                      <div className="flex items-center space-x-2">
+                        <div className="text-xs text-gray-400">
+                          {formatDate(relanceDate)}
+                        </div>
+                        {relance.calendar_link && (
+                          <a
+                            href={relance.calendar_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                            title="Voir dans Google Calendar"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
                       </div>
                     </div>
                     {relance.note && (
                       <p className="text-sm text-gray-300 mt-2">{relance.note}</p>
+                    )}
+                    {relance.calendar_event_id && (
+                      <div className="mt-2 flex items-center space-x-1 text-xs text-green-400">
+                        <CheckCircle className="w-3 h-3" />
+                        <span>Synchronisé avec le calendrier</span>
+                      </div>
                     )}
                   </div>
                 </div>

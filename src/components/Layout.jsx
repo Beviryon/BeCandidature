@@ -1,5 +1,5 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
-import { LogOut, Plus, List, BarChart3, Calendar, Bot, Search, Sparkles, FileText, Mail, MessageSquare, Linkedin, Menu, X, Moon, Sun, Shield, FileSpreadsheet } from 'lucide-react'
+import { LogOut, Plus, List, BarChart3, Calendar, Bot, Search, Sparkles, FileText, Mail, MessageSquare, Linkedin, Menu, X, Moon, Sun, Shield, FileSpreadsheet, Settings } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '../firebaseConfig'
