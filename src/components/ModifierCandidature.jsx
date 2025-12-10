@@ -4,15 +4,17 @@ import {
   Building2, Briefcase, Calendar, User, Link as LinkIcon, 
   FileText, Save, X, AlertCircle, Info 
 } from 'lucide-react'
-import { getCandidature, updateCandidature } from '../services/candidaturesService'
-import { DEMO_MODE, getDemoCandidatures, saveDemoCandidatures } from '../demoData'
+import { useCandidatures } from '../hooks/useCandidatures'
+import { DEMO_MODE, getDemoCandidatures } from '../demoData'
+import Loading from './Loading'
 
 function ModifierCandidature() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { getCandidature, updateCandidature, candidatures } = useCandidatures()
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(true)
-  const [error, setError] = useState(null)
+  const [errors, setErrors] = useState({})
 
   const [formData, setFormData] = useState({
     entreprise: '',
@@ -32,31 +34,17 @@ function ModifierCandidature() {
     try {
       setLoadingData(true)
       
+      let data
       if (DEMO_MODE) {
-        const candidatures = getDemoCandidatures()
-        const candidature = candidatures.find(c => c.id === id)
-        
-        if (!candidature) {
-          setError('Candidature non trouvée')
-          setLoadingData(false)
-          return
-        }
-
-        setFormData({
-          entreprise: candidature.entreprise,
-          poste: candidature.poste,
-          date_candidature: candidature.date_candidature,
-          statut: candidature.statut,
-          contact: candidature.contact || '',
-          lien: candidature.lien || '',
-          notes: candidature.notes || '',
-        })
-        setLoadingData(false)
-        return
+        const demoCandidatures = getDemoCandidatures()
+        data = demoCandidatures.find(c => c.id === id)
+      } else {
+        data = await getCandidature(id)
       }
 
-      // Firebase
-      const data = await getCandidature(id)
+      if (!data) {
+        throw new Error('Candidature non trouvée')
+      }
 
       setFormData({
         entreprise: data.entreprise,
@@ -68,7 +56,8 @@ function ModifierCandidature() {
         notes: data.notes || '',
       })
     } catch (error) {
-      setError(error.message)
+      // L'erreur sera gérée par le hook
+      console.error('Error fetching candidature:', error)
     } finally {
       setLoadingData(false)
     }
@@ -82,12 +71,57 @@ function ModifierCandidature() {
     }))
   }
 
+  // Validation du formulaire
+  const validateForm = () => {
+    const newErrors = {}
+
+    if (!formData.entreprise.trim()) {
+      newErrors.entreprise = 'Le nom de l\'entreprise est requis'
+    }
+
+    if (!formData.poste.trim()) {
+      newErrors.poste = 'Le poste est requis'
+    }
+
+    if (!formData.date_candidature) {
+      newErrors.date_candidature = 'La date de candidature est requise'
+    } else {
+      const date = new Date(formData.date_candidature)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      if (date > today) {
+        newErrors.date_candidature = 'La date ne peut pas être dans le futur'
+      }
+    }
+
+    if (formData.lien && !isValidUrl(formData.lien)) {
+      newErrors.lien = 'Veuillez entrer une URL valide'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const isValidUrl = (string) => {
+    try {
+      new URL(string)
+      return true
+    } catch (_) {
+      return false
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-    setError(null)
-    setLoading(true)
+    setErrors({})
+
+    if (!validateForm()) {
+      return
+    }
 
     try {
+      setLoading(true)
+      
       // Calculer la date de relance uniquement pour "En attente" et "Entretien", pas pour "Refus"
       let dateRelance = ''
       if (formData.statut === 'En attente' || formData.statut === 'Entretien') {
@@ -96,25 +130,6 @@ function ModifierCandidature() {
         dateRelance = relanceDate.toISOString().split('T')[0]
       }
 
-      if (DEMO_MODE) {
-        const candidatures = getDemoCandidatures()
-        const index = candidatures.findIndex(c => c.id === id)
-        
-        if (index !== -1) {
-          candidatures[index] = {
-            ...candidatures[index],
-            ...formData,
-            date_relance: dateRelance,
-            updated_at: new Date().toISOString()
-          }
-          saveDemoCandidatures(candidatures)
-        }
-        
-        navigate('/candidatures')
-        return
-      }
-
-      // Firebase
       await updateCandidature(id, {
         ...formData,
         date_relance: dateRelance,
@@ -122,21 +137,15 @@ function ModifierCandidature() {
       
       navigate('/candidatures')
     } catch (error) {
-      setError(error.message)
+      // L'erreur est déjà gérée par le hook (toast)
+      console.error('Error updating candidature:', error)
     } finally {
       setLoading(false)
     }
   }
 
   if (loadingData) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-4">
-          <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto"></div>
-          <p className="text-gray-400">Chargement...</p>
-        </div>
-      </div>
-    )
+    return <Loading message="Chargement de la candidature..." />
   }
 
   return (
@@ -149,12 +158,19 @@ function ModifierCandidature() {
         <p className="text-gray-400">Mettez à jour les informations de votre candidature</p>
       </div>
 
-      {/* Error message */}
-      {error && (
+      {/* Error messages */}
+      {Object.keys(errors).length > 0 && (
         <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 animate-fade-in">
-          <div className="flex items-center space-x-2">
-            <AlertCircle className="w-5 h-5 text-red-400" />
-            <span className="text-sm text-red-300">{error}</span>
+          <div className="flex items-start space-x-2">
+            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-300 mb-2">Veuillez corriger les erreurs suivantes :</p>
+              <ul className="list-disc list-inside space-y-1 text-sm text-red-200">
+                {Object.values(errors).map((error, index) => (
+                  <li key={index}>{error}</li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       )}
@@ -176,10 +192,15 @@ function ModifierCandidature() {
                 name="entreprise"
                 value={formData.entreprise}
                 onChange={handleChange}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 ${
+                  errors.entreprise ? 'border-red-500/50 focus:ring-red-500' : 'border-white/10'
+                }`}
                 placeholder="Ex: Google, Airbus..."
                 required
               />
+              {errors.entreprise && (
+                <p className="text-xs text-red-400 mt-1">{errors.entreprise}</p>
+              )}
             </div>
 
             {/* Poste */}
@@ -194,10 +215,15 @@ function ModifierCandidature() {
                 name="poste"
                 value={formData.poste}
                 onChange={handleChange}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 ${
+                  errors.poste ? 'border-red-500/50 focus:ring-red-500' : 'border-white/10'
+                }`}
                 placeholder="Ex: Développeur Full Stack"
                 required
               />
+              {errors.poste && (
+                <p className="text-xs text-red-400 mt-1">{errors.poste}</p>
+              )}
             </div>
 
             {/* Date de candidature */}
@@ -212,9 +238,14 @@ function ModifierCandidature() {
                 name="date_candidature"
                 value={formData.date_candidature}
                 onChange={handleChange}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 ${
+                  errors.date_candidature ? 'border-red-500/50 focus:ring-red-500' : 'border-white/10'
+                }`}
                 required
               />
+              {errors.date_candidature && (
+                <p className="text-xs text-red-400 mt-1">{errors.date_candidature}</p>
+              )}
             </div>
 
             {/* Statut */}
@@ -266,9 +297,14 @@ function ModifierCandidature() {
                 name="lien"
                 value={formData.lien}
                 onChange={handleChange}
-                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 ${
+                  errors.lien ? 'border-red-500/50 focus:ring-red-500' : 'border-white/10'
+                }`}
                 placeholder="https://..."
               />
+              {errors.lien && (
+                <p className="text-xs text-red-400 mt-1">{errors.lien}</p>
+              )}
             </div>
           </div>
 

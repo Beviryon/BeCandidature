@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useMemo } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { 
   Building2, Briefcase, Calendar, Clock, User, ExternalLink, 
   Edit, Trash2, Plus, TrendingUp, AlertCircle, CheckCircle, XCircle,
@@ -8,63 +8,30 @@ import {
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
-import { getCandidatures, deleteCandidature as deleteFirebaseCandidature } from '../services/candidaturesService'
-import { DEMO_MODE, getDemoCandidatures, saveDemoCandidatures } from '../demoData'
+import { useCandidatures } from '../hooks/useCandidatures'
+import ConfirmDialog from './ConfirmDialog'
+import { CandidatureSkeleton } from './Loading'
 
 function ListeCandidatures() {
-  const [candidatures, setCandidatures] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const navigate = useNavigate()
+  const { candidatures, loading, error, deleteCandidature } = useCandidatures()
   const [filterStatut, setFilterStatut] = useState('Tous')
   const [searchQuery, setSearchQuery] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, id: null })
 
-  useEffect(() => {
-    fetchCandidatures()
-  }, [])
-
-  const fetchCandidatures = async () => {
-    try {
-      setLoading(true)
-      
-      if (DEMO_MODE) {
-        const demoCandidatures = getDemoCandidatures()
-        setCandidatures(demoCandidatures)
-        setLoading(false)
-        return
-      }
-
-      // Firebase
-      const data = await getCandidatures()
-      // Tri côté client par date décroissante
-      const sortedData = (data || []).sort((a, b) => 
-        new Date(b.date_candidature) - new Date(a.date_candidature)
-      )
-      setCandidatures(sortedData)
-    } catch (error) {
-      setError(error.message)
-    } finally {
-      setLoading(false)
-    }
+  const handleDeleteClick = (id) => {
+    setDeleteConfirm({ isOpen: true, id })
   }
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Êtes-vous sûr de vouloir supprimer cette candidature ?')) {
-      return
-    }
-
-    try {
-      if (DEMO_MODE) {
-        const updatedCandidatures = candidatures.filter((c) => c.id !== id)
-        setCandidatures(updatedCandidatures)
-        saveDemoCandidatures(updatedCandidatures)
-        return
+  const handleDeleteConfirm = async () => {
+    if (deleteConfirm.id) {
+      try {
+        await deleteCandidature(deleteConfirm.id)
+        setDeleteConfirm({ isOpen: false, id: null })
+      } catch (error) {
+        // L'erreur est déjà gérée par le hook
+        setDeleteConfirm({ isOpen: false, id: null })
       }
-
-      // Firebase
-      await deleteFirebaseCandidature(id)
-      setCandidatures(candidatures.filter((c) => c.id !== id))
-    } catch (error) {
-      alert('Erreur lors de la suppression : ' + error.message)
     }
   }
 
@@ -178,6 +145,29 @@ function ListeCandidatures() {
     doc.save(`candidatures_${new Date().toISOString().split('T')[0]}.pdf`)
   }
 
+  // Filtrage des candidatures (memoized pour performance) - DOIT être avant les returns conditionnels
+  const filteredCandidatures = useMemo(() => {
+    return candidatures.filter(candidature => {
+      // Filtre par statut
+      const matchStatut = filterStatut === 'Tous' || candidature.statut === filterStatut
+      
+      // Filtre par recherche (entreprise ou poste)
+      const matchSearch = searchQuery === '' || 
+        candidature.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        candidature.poste.toLowerCase().includes(searchQuery.toLowerCase())
+      
+      return matchStatut && matchSearch
+    })
+  }, [candidatures, filterStatut, searchQuery])
+
+  // Statistiques (memoized pour performance) - DOIT être avant les returns conditionnels
+  const stats = useMemo(() => ({
+    total: candidatures.length,
+    entretien: candidatures.filter(c => c.statut === 'Entretien').length,
+    attente: candidatures.filter(c => c.statut === 'En attente').length,
+    refus: candidatures.filter(c => c.statut === 'Refus').length
+  }), [candidatures])
+
   // Export to Excel
   const exportToExcel = () => {
     // Prepare data
@@ -228,10 +218,17 @@ function ListeCandidatures() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-4">
-          <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto"></div>
-          <p className="text-gray-400">Chargement des candidatures...</p>
+      <div className="space-y-8 animate-slide-up">
+        <div>
+          <h2 className="text-4xl font-bold gradient-text mb-2">
+            Mes Candidatures
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">Gérez et suivez toutes vos candidatures</p>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[1, 2, 3, 4].map(i => (
+            <CandidatureSkeleton key={i} />
+          ))}
         </div>
       </div>
     )
@@ -246,26 +243,6 @@ function ListeCandidatures() {
         </div>
       </div>
     )
-  }
-
-  // Filtrage des candidatures
-  const filteredCandidatures = candidatures.filter(candidature => {
-    // Filtre par statut
-    const matchStatut = filterStatut === 'Tous' || candidature.statut === filterStatut
-    
-    // Filtre par recherche (entreprise ou poste)
-    const matchSearch = searchQuery === '' || 
-      candidature.entreprise.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      candidature.poste.toLowerCase().includes(searchQuery.toLowerCase())
-    
-    return matchStatut && matchSearch
-  })
-
-  const stats = {
-    total: candidatures.length,
-    entretien: candidatures.filter(c => c.statut === 'Entretien').length,
-    attente: candidatures.filter(c => c.statut === 'En attente').length,
-    refus: candidatures.filter(c => c.statut === 'Refus').length
   }
 
   const filtresStatut = ['Tous', 'En attente', 'Entretien', 'Refus']
@@ -481,8 +458,9 @@ function ListeCandidatures() {
             return (
               <div
                 key={candidature.id}
-                className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-white/10 hover:border-purple-500/30 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl animate-fade-in"
+                className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-white/10 hover:border-purple-500/30 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl animate-fade-in cursor-pointer"
                 style={{ animationDelay: `${index * 0.1}s` }}
+                onClick={() => navigate(`/candidatures/${candidature.id}`)}
               >
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
@@ -535,6 +513,7 @@ function ListeCandidatures() {
                       href={candidature.lien}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
                       className="flex items-center space-x-2 text-sm text-purple-400 hover:text-purple-300 transition-colors"
                     >
                       <ExternalLink className="w-4 h-4" />
@@ -551,7 +530,17 @@ function ListeCandidatures() {
                 )}
 
                 {/* Actions */}
-                <div className="flex items-center space-x-2 pt-4 border-t border-white/10">
+                <div 
+                  className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-4 border-t border-white/10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Link
+                    to={`/candidatures/${candidature.id}`}
+                    className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl transition-all duration-300 border border-white/10 hover:border-purple-500/30"
+                  >
+                    <Briefcase className="w-4 h-4" />
+                    <span className="text-sm font-medium">Détails</span>
+                  </Link>
                   <Link
                     to={`/modifier/${candidature.id}`}
                     className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl transition-all duration-300 border border-white/10 hover:border-purple-500/30"
@@ -560,7 +549,7 @@ function ListeCandidatures() {
                     <span className="text-sm font-medium">Modifier</span>
                   </Link>
                   <button
-                    onClick={() => handleDelete(candidature.id)}
+                    onClick={() => handleDeleteClick(candidature.id)}
                     className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-xl transition-all duration-300 border border-red-500/30 hover:border-red-500/50"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -572,6 +561,18 @@ function ListeCandidatures() {
           })}
         </div>
       )}
+
+      {/* Dialog de confirmation de suppression */}
+      <ConfirmDialog
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ isOpen: false, id: null })}
+        onConfirm={handleDeleteConfirm}
+        title="Supprimer la candidature"
+        message="Êtes-vous sûr de vouloir supprimer cette candidature ? Cette action est irréversible."
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        type="danger"
+      />
     </div>
   )
 }

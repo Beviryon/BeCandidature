@@ -1,45 +1,15 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { 
   TrendingUp, TrendingDown, Target, Clock, Brain, Zap,
   Calendar, Award, AlertCircle, CheckCircle, BarChart3
 } from 'lucide-react'
 import { PieChart, Pie, Cell, LineChart, Line, BarChart, Bar, XAxis, YAxis, 
          Tooltip, ResponsiveContainer, Legend } from 'recharts'
-import { getCandidatures } from '../services/candidaturesService'
-import { DEMO_MODE, getDemoCandidatures } from '../demoData'
+import { useCandidatures } from '../hooks/useCandidatures'
+import { DashboardSkeleton } from './Loading'
 
 function Dashboard() {
-  const [candidatures, setCandidatures] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetchCandidatures()
-  }, [])
-
-  const fetchCandidatures = async () => {
-    try {
-      setLoading(true)
-      
-      if (DEMO_MODE) {
-        const demoCandidatures = getDemoCandidatures()
-        setCandidatures(demoCandidatures)
-        setLoading(false)
-        return
-      }
-
-      // Firebase
-      const data = await getCandidatures()
-      // Tri côté client par date décroissante
-      const sortedData = (data || []).sort((a, b) => 
-        new Date(b.date_candidature) - new Date(a.date_candidature)
-      )
-      setCandidatures(sortedData)
-    } catch (error) {
-      console.error(error)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { candidatures, loading } = useCandidatures()
 
   // Calculs et analyses
   const analytics = useMemo(() => {
@@ -131,14 +101,7 @@ function Dashboard() {
   ] : []
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center space-y-4">
-          <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin mx-auto"></div>
-          <p className="text-gray-400">Chargement du dashboard...</p>
-        </div>
-      </div>
-    )
+    return <DashboardSkeleton />
   }
 
   if (!analytics) {

@@ -22,6 +22,7 @@ import EmailImport from './components/EmailImport'
 import JobScanner from './components/JobScanner'
 import Templates from './components/Templates'
 import LinkedInIntegration from './components/LinkedInIntegration'
+import CandidatureDetail from './components/CandidatureDetail'
 import Layout from './components/Layout'
 
 function App() {
@@ -168,6 +169,7 @@ function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />
               <Route path="/candidatures" element={<ListeCandidatures />} />
+              <Route path="/candidatures/:id" element={<CandidatureDetail />} />
               <Route path="/calendrier" element={<Calendrier />} />
               <Route path="/cv" element={<CVGenerator />} />
               <Route path="/assistant" element={<AssistantIA />} />
