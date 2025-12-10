@@ -1,5 +1,5 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
-import { LogOut, Plus, List, BarChart3, Calendar, Bot, Search, Sparkles, FileText, Mail, MessageSquare, Linkedin, Menu, X, Moon, Sun, Shield } from 'lucide-react'
+import { LogOut, Plus, List, BarChart3, Calendar, Bot, Search, Sparkles, FileText, Mail, MessageSquare, Linkedin, Menu, X, Moon, Sun, Shield, FileSpreadsheet } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '../firebaseConfig'
@@ -165,6 +165,18 @@ function Layout() {
                         >
                           <Mail className={`w-8 h-8 mb-2 ${isActive('/import-email') ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
                           <span className="text-sm font-semibold text-center">Email</span>
+                        </Link>
+                        <Link
+                          to="/import-excel"
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`group flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300 transform hover:scale-105 ${
+                            isActive('/import-excel')
+                              ? 'bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg shadow-green-500/30'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:shadow-md'
+                          }`}
+                        >
+                          <FileSpreadsheet className={`w-8 h-8 mb-2 ${isActive('/import-excel') ? 'text-white' : 'text-green-600 dark:text-green-400'}`} />
+                          <span className="text-sm font-semibold text-center">Excel</span>
                         </Link>
                         <Link
                           to="/templates"
@@ -346,6 +358,18 @@ function Layout() {
             >
               <Mail className="w-4 h-4 mb-1" />
               <span>Email</span>
+            </Link>
+            <Link
+              to="/import-excel"
+              onClick={() => setIsMobileNavOpen(false)}
+              className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
+                isActive('/import-excel')
+                  ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
+                  : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+              }`}
+            >
+              <FileSpreadsheet className="w-4 h-4 mb-1" />
+              <span>Excel</span>
             </Link>
             <Link
               to="/templates"

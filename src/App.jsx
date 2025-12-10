@@ -19,6 +19,7 @@ import Calendrier from './components/Calendrier'
 import CVGenerator from './components/CVGenerator'
 import AssistantIA from './components/AssistantIA'
 import EmailImport from './components/EmailImport'
+import ExcelImport from './components/ExcelImport'
 import JobScanner from './components/JobScanner'
 import Templates from './components/Templates'
 import LinkedInIntegration from './components/LinkedInIntegration'
@@ -174,6 +175,7 @@ function App() {
               <Route path="/cv" element={<CVGenerator />} />
               <Route path="/assistant" element={<AssistantIA />} />
               <Route path="/import-email" element={<EmailImport />} />
+              <Route path="/import-excel" element={<ExcelImport />} />
               <Route path="/scan-offres" element={<JobScanner />} />
               <Route path="/ajouter" element={<AjouterCandidature />} />
               <Route path="/modifier/:id" element={<ModifierCandidature />} />

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { 
   Building2, Briefcase, Calendar, User, Link as LinkIcon, 
-  FileText, Save, X, AlertCircle, Info 
+  FileText, Save, X, AlertCircle, Info, Mail, ExternalLink, FileCheck
 } from 'lucide-react'
 import { useCandidatures } from '../hooks/useCandidatures'
 import { DEMO_MODE, getDemoCandidatures } from '../demoData'
@@ -21,7 +21,9 @@ function ModifierCandidature() {
     poste: '',
     date_candidature: '',
     statut: 'En attente',
+    type_contrat: '',
     contact: '',
+    email: '',
     lien: '',
     notes: '',
   })
@@ -51,7 +53,9 @@ function ModifierCandidature() {
         poste: data.poste,
         date_candidature: data.date_candidature,
         statut: data.statut,
+        type_contrat: data.type_contrat || '',
         contact: data.contact || '',
+        email: data.email || '',
         lien: data.lien || '',
         notes: data.notes || '',
       })
@@ -98,8 +102,17 @@ function ModifierCandidature() {
       newErrors.lien = 'Veuillez entrer une URL valide'
     }
 
+    if (formData.email && !isValidEmail(formData.email)) {
+      newErrors.email = 'Veuillez entrer une adresse email valide'
+    }
+
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
+  }
+
+  const isValidEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
   }
 
   const isValidUrl = (string) => {
@@ -268,11 +281,55 @@ function ModifierCandidature() {
               </select>
             </div>
 
-            {/* Contact */}
+            {/* Type de contrat */}
+            <div className="space-y-2">
+              <label htmlFor="type_contrat" className="flex items-center space-x-2 text-sm font-medium text-gray-300">
+                <FileCheck className="w-4 h-4 text-purple-400" />
+                <span>Type de contrat</span>
+              </label>
+              <select
+                id="type_contrat"
+                name="type_contrat"
+                value={formData.type_contrat}
+                onChange={handleChange}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+              >
+                <option value="" className="bg-slate-800">Sélectionner...</option>
+                <option value="CDI" className="bg-slate-800">CDI</option>
+                <option value="CDD" className="bg-slate-800">CDD</option>
+                <option value="Stage" className="bg-slate-800">Stage</option>
+                <option value="Alternance" className="bg-slate-800">Alternance</option>
+                <option value="Intérim" className="bg-slate-800">Intérim</option>
+              </select>
+            </div>
+
+            {/* Email */}
+            <div className="space-y-2">
+              <label htmlFor="email" className="flex items-center space-x-2 text-sm font-medium text-gray-300">
+                <Mail className="w-4 h-4 text-purple-400" />
+                <span>Email du recruteur</span>
+              </label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 ${
+                  errors.email ? 'border-red-500/50 focus:ring-red-500' : 'border-white/10'
+                }`}
+                placeholder="recruteur@entreprise.com"
+              />
+              {errors.email && (
+                <p className="text-xs text-red-400 mt-1">{errors.email}</p>
+              )}
+            </div>
+
+            {/* Contact (Nom, téléphone) */}
             <div className="space-y-2">
               <label htmlFor="contact" className="flex items-center space-x-2 text-sm font-medium text-gray-300">
                 <User className="w-4 h-4 text-purple-400" />
-                <span>Contact</span>
+                <span>Contact (Nom, téléphone)</span>
               </label>
               <input
                 type="text"
@@ -281,30 +338,46 @@ function ModifierCandidature() {
                 value={formData.contact}
                 onChange={handleChange}
                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
-                placeholder="Nom, email, téléphone..."
+                placeholder="Ex: Jean Dupont, +33 6 12 34 56 78"
               />
             </div>
 
-            {/* Lien */}
-            <div className="space-y-2">
+            {/* Lien de l'offre */}
+            <div className="space-y-2 md:col-span-2">
               <label htmlFor="lien" className="flex items-center space-x-2 text-sm font-medium text-gray-300">
                 <LinkIcon className="w-4 h-4 text-purple-400" />
-                <span>Lien de l'offre</span>
+                <span>Lien de l'offre d'emploi</span>
               </label>
-              <input
-                type="url"
-                id="lien"
-                name="lien"
-                value={formData.lien}
-                onChange={handleChange}
-                className={`w-full px-4 py-3 bg-white/5 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 ${
-                  errors.lien ? 'border-red-500/50 focus:ring-red-500' : 'border-white/10'
-                }`}
-                placeholder="https://..."
-              />
+              <div className="relative">
+                <input
+                  type="url"
+                  id="lien"
+                  name="lien"
+                  value={formData.lien}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-3 pr-12 bg-white/5 border rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300 ${
+                    errors.lien ? 'border-red-500/50 focus:ring-red-500' : 'border-white/10'
+                  }`}
+                  placeholder="https://www.linkedin.com/jobs/view/... ou https://careers.entreprise.com/jobs/..."
+                />
+                {formData.lien && isValidUrl(formData.lien) && (
+                  <a
+                    href={formData.lien}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-purple-400 hover:text-purple-300 transition-colors"
+                    title="Ouvrir le lien dans un nouvel onglet"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+                )}
+              </div>
               {errors.lien && (
                 <p className="text-xs text-red-400 mt-1">{errors.lien}</p>
               )}
+              <p className="text-xs text-gray-400 mt-1">
+                💡 Ajoutez le lien de l'offre pour y accéder rapidement depuis votre liste de candidatures
+              </p>
             </div>
           </div>
 

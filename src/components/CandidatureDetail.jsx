@@ -14,7 +14,11 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Save
+  Save,
+  Mail,
+  FileCheck,
+  Send,
+  Plus
 } from 'lucide-react'
 import { useCandidatures } from '../hooks/useCandidatures'
 import Loading from './Loading'
@@ -43,6 +47,11 @@ function CandidatureDetail() {
   const [status, setStatus] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showRelanceForm, setShowRelanceForm] = useState(false)
+  const [relanceDate, setRelanceDate] = useState(new Date().toISOString().split('T')[0])
+  const [relanceNote, setRelanceNote] = useState('')
+  const [relanceType, setRelanceType] = useState('Email')
+  const [savingRelance, setSavingRelance] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -119,6 +128,53 @@ function CandidatureDetail() {
     }
   }
 
+  const handleAddRelance = async () => {
+    if (!relanceDate || !candidature) return
+
+    try {
+      setSavingRelance(true)
+      const newRelance = {
+        date: relanceDate,
+        type: relanceType,
+        note: relanceNote.trim(),
+        created_at: new Date().toISOString()
+      }
+
+      const updatedRelances = [...(candidature.relances || []), newRelance]
+      
+      // Mettre à jour aussi la date_relance avec la dernière relance
+      const lastRelanceDate = updatedRelances
+        .map(r => r.date)
+        .sort()
+        .reverse()[0]
+
+      const payload = {
+        ...candidature,
+        relances: updatedRelances,
+        date_relance: lastRelanceDate
+      }
+
+      await updateCandidature(id, payload)
+      setCandidature(payload)
+      setRelanceDate(new Date().toISOString().split('T')[0])
+      setRelanceNote('')
+      setRelanceType('Email')
+      setShowRelanceForm(false)
+      success('Relance ajoutée à l\'historique')
+    } catch (err) {
+      showError(err.message || 'Erreur lors de l\'ajout de la relance')
+    } finally {
+      setSavingRelance(false)
+    }
+  }
+
+  const relances = candidature?.relances || []
+  const sortedRelances = [...relances].sort((a, b) => {
+    const dateA = new Date(a.date || a.created_at)
+    const dateB = new Date(b.date || b.created_at)
+    return dateB - dateA // Plus récent en premier
+  })
+
   if (loading || !candidature) {
     return <Loading message="Chargement de la candidature..." />
   }
@@ -158,6 +214,21 @@ function CandidatureDetail() {
               <Calendar className="w-4 h-4 text-purple-400" />
               <span>Envoyée le {formatDate(candidature.date_candidature)}</span>
             </div>
+            {candidature.type_contrat && (
+              <div className="flex items-center space-x-2 text-sm text-gray-400">
+                <FileCheck className="w-4 h-4 text-purple-400" />
+                <span>Type de contrat : {candidature.type_contrat}</span>
+              </div>
+            )}
+            {candidature.email && (
+              <a
+                href={`mailto:${candidature.email}`}
+                className="inline-flex items-center space-x-2 text-sm text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                <Mail className="w-4 h-4" />
+                <span>{candidature.email}</span>
+              </a>
+            )}
             {candidature.contact && (
               <div className="flex items-center space-x-2 text-sm text-gray-400">
                 <User className="w-4 h-4 text-purple-400" />
@@ -254,6 +325,142 @@ function CandidatureDetail() {
             Modifier la fiche
           </Link>
         </div>
+      </div>
+
+      {/* Historique des relances */}
+      <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl border border-purple-500/20 p-6 shadow-lg">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2 text-gray-200">
+            <Send className="w-5 h-5 text-purple-400" />
+            <h4 className="text-lg font-semibold">Historique des relances</h4>
+            {sortedRelances.length > 0 && (
+              <span className="text-xs text-gray-400 bg-white/5 px-2 py-1 rounded-full">
+                {sortedRelances.length} relance{sortedRelances.length > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setShowRelanceForm(!showRelanceForm)}
+            className="flex items-center space-x-2 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-xl border border-purple-500/30 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Ajouter une relance</span>
+          </button>
+        </div>
+
+        {/* Formulaire d'ajout de relance */}
+        {showRelanceForm && (
+          <div className="mb-6 p-4 rounded-xl bg-white/5 border border-purple-500/20 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm text-gray-300">Date de la relance</label>
+                <input
+                  type="date"
+                  value={relanceDate}
+                  onChange={(e) => setRelanceDate(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-gray-300">Type de relance</label>
+                <select
+                  value={relanceType}
+                  onChange={(e) => setRelanceType(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                >
+                  <option value="Email" className="bg-slate-800">Email</option>
+                  <option value="Appel téléphonique" className="bg-slate-800">Appel téléphonique</option>
+                  <option value="LinkedIn" className="bg-slate-800">LinkedIn</option>
+                  <option value="Autre" className="bg-slate-800">Autre</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-gray-300">Note (optionnelle)</label>
+                <input
+                  type="text"
+                  value={relanceNote}
+                  onChange={(e) => setRelanceNote(e.target.value)}
+                  placeholder="Ex: Relance envoyée, réponse positive..."
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                />
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={handleAddRelance}
+                disabled={savingRelance || !relanceDate}
+                className="flex items-center space-x-2 px-5 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {savingRelance ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    <span>Ajout...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    <span>Enregistrer la relance</span>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  setShowRelanceForm(false)
+                  setRelanceNote('')
+                }}
+                className="px-5 py-2 bg-white/5 hover:bg-white/10 text-gray-200 rounded-xl border border-white/10 transition-colors"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Liste des relances */}
+        {sortedRelances.length === 0 ? (
+          <div className="text-center py-8">
+            <Send className="w-12 h-12 text-gray-600 mx-auto mb-3 opacity-50" />
+            <p className="text-sm text-gray-400">Aucune relance enregistrée pour le moment.</p>
+            <p className="text-xs text-gray-500 mt-2">Cliquez sur "Ajouter une relance" pour commencer.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {sortedRelances.map((relance, idx) => {
+              const relanceDate = relance.date || relance.created_at
+              const dateObj = relanceDate?.toDate ? relanceDate.toDate() : new Date(relanceDate)
+              const isRecent = (new Date() - dateObj) < 7 * 24 * 60 * 60 * 1000 // Moins de 7 jours
+              
+              return (
+                <div
+                  key={`${relance.date || relance.created_at}-${idx}`}
+                  className="flex items-start space-x-3 p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
+                >
+                  <div className={`mt-1 w-10 h-10 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center ${isRecent ? 'ring-2 ring-purple-500/50' : ''}`}>
+                    <Send className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-sm font-semibold text-white">{relance.type || 'Email'}</span>
+                        {isRecent && (
+                          <span className="text-xs text-purple-400 bg-purple-500/20 px-2 py-0.5 rounded-full">
+                            Récente
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {formatDate(relanceDate)}
+                      </div>
+                    </div>
+                    {relance.note && (
+                      <p className="text-sm text-gray-300 mt-2">{relance.note}</p>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Historique / Timeline */}

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { 
   Building2, Briefcase, Calendar, Clock, User, ExternalLink, 
   Edit, Trash2, Plus, TrendingUp, AlertCircle, CheckCircle, XCircle,
-  Search, Filter, FileDown, FileSpreadsheet
+  Search, Filter, FileDown, FileSpreadsheet, Upload, Mail, FileCheck
 } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -257,13 +257,22 @@ function ListeCandidatures() {
           </h2>
           <p className="text-gray-600 dark:text-gray-400">Gérez et suivez toutes vos candidatures</p>
         </div>
-        <Link
-          to="/ajouter"
-          className="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-purple-500/50"
-        >
-          <Plus className="w-5 h-5" />
-          <span>Nouvelle Candidature</span>
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            to="/import-excel"
+            className="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-green-500/50"
+          >
+            <Upload className="w-5 h-5" />
+            <span>Importer Excel</span>
+          </Link>
+          <Link
+            to="/ajouter"
+            className="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-purple-500/50"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Nouvelle Candidature</span>
+          </Link>
+        </div>
       </div>
 
       {/* Statistics */}
@@ -499,6 +508,24 @@ function ListeCandidatures() {
                         {needsRelance && ' - À relancer !'}
                       </span>
                     </div>
+                  )}
+
+                  {candidature.type_contrat && (
+                    <div className="flex items-center space-x-3 text-sm">
+                      <FileCheck className="w-4 h-4 text-purple-400" />
+                      <span className="text-gray-400">{candidature.type_contrat}</span>
+                    </div>
+                  )}
+
+                  {candidature.email && (
+                    <a
+                      href={`mailto:${candidature.email}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center space-x-2 text-sm text-purple-400 hover:text-purple-300 transition-colors"
+                    >
+                      <Mail className="w-4 h-4" />
+                      <span className="truncate">{candidature.email}</span>
+                    </a>
                   )}
 
                   {candidature.contact && (
