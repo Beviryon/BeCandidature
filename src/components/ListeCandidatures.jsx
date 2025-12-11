@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { 
   Building2, Briefcase, Calendar, Clock, User, ExternalLink, 
   Edit, Trash2, Plus, TrendingUp, AlertCircle, CheckCircle, XCircle,
-  Search, Filter, FileDown, FileSpreadsheet, Upload, Mail, FileCheck
+  Search, Filter, FileDown, FileSpreadsheet, Upload, Mail, FileCheck,
+  CheckSquare, Square, Layers
 } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -18,6 +19,9 @@ function ListeCandidatures() {
   const [filterStatut, setFilterStatut] = useState('Tous')
   const [searchQuery, setSearchQuery] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, id: null })
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState({ isOpen: false, count: 0 })
 
   const handleDeleteClick = (id) => {
     setDeleteConfirm({ isOpen: true, id })
@@ -33,6 +37,54 @@ function ListeCandidatures() {
         setDeleteConfirm({ isOpen: false, id: null })
       }
     }
+  }
+
+  // Gestion de la sélection multiple
+  const toggleSelection = (id) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredCandidatures.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredCandidatures.map(c => c.id)))
+    }
+  }
+
+  const handleBulkDeleteClick = () => {
+    if (selectedIds.size > 0) {
+      setBulkDeleteConfirm({ isOpen: true, count: selectedIds.size })
+    }
+  }
+
+  const handleBulkDeleteConfirm = async () => {
+    try {
+      const idsToDelete = Array.from(selectedIds)
+      // Supprimer les candidatures une par une
+      for (const id of idsToDelete) {
+        await deleteCandidature(id)
+      }
+      setSelectedIds(new Set())
+      setIsSelectionMode(false)
+      setBulkDeleteConfirm({ isOpen: false, count: 0 })
+    } catch (error) {
+      // L'erreur est déjà gérée par le hook
+      setBulkDeleteConfirm({ isOpen: false, count: 0 })
+    }
+  }
+
+  const exitSelectionMode = () => {
+    setIsSelectionMode(false)
+    setSelectedIds(new Set())
   }
 
   const getStatusConfig = (statut) => {
@@ -258,22 +310,74 @@ function ListeCandidatures() {
           <p className="text-gray-600 dark:text-gray-400">Gérez et suivez toutes vos candidatures</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Link
-            to="/import-excel"
-            className="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-green-500/50"
-          >
-            <Upload className="w-5 h-5" />
-            <span>Importer Excel</span>
-          </Link>
-          <Link
-            to="/ajouter"
-            className="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-purple-500/50"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Nouvelle Candidature</span>
-          </Link>
+          {isSelectionMode ? (
+            <>
+              <button
+                onClick={exitSelectionMode}
+                className="group flex items-center space-x-2 px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg"
+              >
+                <XCircle className="w-5 h-5" />
+                <span>Annuler</span>
+              </button>
+              <button
+                onClick={handleBulkDeleteClick}
+                disabled={selectedIds.size === 0}
+                className="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-red-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
+                <Trash2 className="w-5 h-5" />
+                <span>Supprimer ({selectedIds.size})</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <Link
+                to="/import-excel"
+                className="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-green-500/50"
+              >
+                <Upload className="w-5 h-5" />
+                <span>Importer Excel</span>
+              </Link>
+              <Link
+                to="/ajouter"
+                className="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-purple-500/50"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Nouvelle Candidature</span>
+              </Link>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Barre de sélection */}
+      {isSelectionMode && filteredCandidatures.length > 0 && (
+        <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 backdrop-blur-xl rounded-2xl p-4 border border-blue-500/30 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={toggleSelectAll}
+                className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all border border-white/20"
+              >
+                {selectedIds.size === filteredCandidatures.length ? (
+                  <CheckSquare className="w-5 h-5" />
+                ) : (
+                  <Square className="w-5 h-5" />
+                )}
+                <span className="font-medium">
+                  {selectedIds.size === filteredCandidatures.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                </span>
+              </button>
+              <div className="text-white font-medium">
+                {selectedIds.size} candidature{selectedIds.size > 1 ? 's' : ''} sélectionnée{selectedIds.size > 1 ? 's' : ''}
+              </div>
+            </div>
+            <div className="flex items-center space-x-2 text-blue-200">
+              <Layers className="w-5 h-5" />
+              <span className="text-sm">Mode sélection actif</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Statistics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -419,6 +523,19 @@ function ListeCandidatures() {
         </div>
       )}
 
+      {/* Bouton Sélectionner - Avant les cartes */}
+      {!isSelectionMode && candidatures.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => setIsSelectionMode(true)}
+            className="inline-flex items-center space-x-2 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white text-sm font-medium rounded-lg transform transition-all duration-300 hover:scale-105 shadow-md hover:shadow-blue-500/50"
+          >
+            <CheckSquare className="w-3.5 h-3.5" />
+            <span>Sélectionner</span>
+          </button>
+        </div>
+      )}
+
       {/* Candidatures list */}
       {candidatures.length === 0 ? (
         <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-12 text-center border border-purple-500/20 animate-fade-in">
@@ -464,17 +581,44 @@ function ListeCandidatures() {
             const StatusIcon = statusConfig.icon
             const needsRelance = shouldRelancer(candidature.date_candidature) && candidature.statut === 'En attente'
 
+            const isSelected = selectedIds.has(candidature.id)
+
             return (
               <div
                 key={candidature.id}
-                className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-white/10 hover:border-purple-500/30 transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl animate-fade-in cursor-pointer"
+                className={`bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl animate-fade-in ${
+                  isSelectionMode 
+                    ? `cursor-default ${isSelected ? 'border-blue-500/50 bg-blue-500/10' : 'border-white/10 hover:border-blue-500/30'}` 
+                    : 'cursor-pointer border-white/10 hover:border-purple-500/30'
+                }`}
                 style={{ animationDelay: `${index * 0.1}s` }}
-                onClick={() => navigate(`/candidatures/${candidature.id}`)}
+                onClick={() => {
+                  if (isSelectionMode) {
+                    toggleSelection(candidature.id)
+                  } else {
+                    navigate(`/candidatures/${candidature.id}`)
+                  }
+                }}
               >
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <div className="flex items-center space-x-3 mb-2">
+                      {isSelectionMode && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleSelection(candidature.id)
+                          }}
+                          className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+                            isSelected
+                              ? 'bg-blue-500 border-blue-500'
+                              : 'border-gray-400 hover:border-blue-400'
+                          }`}
+                        >
+                          {isSelected && <CheckSquare className="w-4 h-4 text-white" />}
+                        </button>
+                      )}
                       <Building2 className="w-5 h-5 text-purple-400" />
                       <h3 className="text-xl font-bold text-white">{candidature.entreprise}</h3>
                     </div>
@@ -557,32 +701,34 @@ function ListeCandidatures() {
                 )}
 
                 {/* Actions */}
-                <div 
-                  className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-4 border-t border-white/10"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Link
-                    to={`/candidatures/${candidature.id}`}
-                    className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl transition-all duration-300 border border-white/10 hover:border-purple-500/30"
+                {!isSelectionMode && (
+                  <div 
+                    className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-4 border-t border-white/10"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <Briefcase className="w-4 h-4" />
-                    <span className="text-sm font-medium">Détails</span>
-                  </Link>
-                  <Link
-                    to={`/modifier/${candidature.id}`}
-                    className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl transition-all duration-300 border border-white/10 hover:border-purple-500/30"
-                  >
-                    <Edit className="w-4 h-4" />
-                    <span className="text-sm font-medium">Modifier</span>
-                  </Link>
-                  <button
-                    onClick={() => handleDeleteClick(candidature.id)}
-                    className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-xl transition-all duration-300 border border-red-500/30 hover:border-red-500/50"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span className="text-sm font-medium">Supprimer</span>
-                  </button>
-                </div>
+                    <Link
+                      to={`/candidatures/${candidature.id}`}
+                      className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl transition-all duration-300 border border-white/10 hover:border-purple-500/30"
+                    >
+                      <Briefcase className="w-4 h-4" />
+                      <span className="text-sm font-medium">Détails</span>
+                    </Link>
+                    <Link
+                      to={`/modifier/${candidature.id}`}
+                      className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl transition-all duration-300 border border-white/10 hover:border-purple-500/30"
+                    >
+                      <Edit className="w-4 h-4" />
+                      <span className="text-sm font-medium">Modifier</span>
+                    </Link>
+                    <button
+                      onClick={() => handleDeleteClick(candidature.id)}
+                      className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-xl transition-all duration-300 border border-red-500/30 hover:border-red-500/50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span className="text-sm font-medium">Supprimer</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -597,6 +743,18 @@ function ListeCandidatures() {
         title="Supprimer la candidature"
         message="Êtes-vous sûr de vouloir supprimer cette candidature ? Cette action est irréversible."
         confirmText="Supprimer"
+        cancelText="Annuler"
+        type="danger"
+      />
+
+      {/* Dialog de confirmation de suppression multiple */}
+      <ConfirmDialog
+        isOpen={bulkDeleteConfirm.isOpen}
+        onClose={() => setBulkDeleteConfirm({ isOpen: false, count: 0 })}
+        onConfirm={handleBulkDeleteConfirm}
+        title="Supprimer les candidatures"
+        message={`Êtes-vous sûr de vouloir supprimer ${bulkDeleteConfirm.count} candidature${bulkDeleteConfirm.count > 1 ? 's' : ''} ? Cette action est irréversible.`}
+        confirmText={`Supprimer ${bulkDeleteConfirm.count}`}
         cancelText="Annuler"
         type="danger"
       />

@@ -275,3 +275,4 @@ export const generateICalLink = (relance) => {
   return url
 }
 
+

@@ -221,3 +221,4 @@ if (loading) {
 **Date de mise à jour :** $(date)
 **Version :** 1.1.0
 
+
