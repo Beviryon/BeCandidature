@@ -87,35 +87,53 @@ function ExcelImport() {
 
       // Préparer les données avec le mapping
       const mappedData = rows.map((row, rowIndex) => {
+        // Récupérer les valeurs brutes
+        const rawDate = autoMapping.date_candidature !== undefined ? row[autoMapping.date_candidature] : null
+        const rawStatus = autoMapping.statut !== undefined ? row[autoMapping.statut] : null
+        
+        // Parser la date
+        let date_candidature = null
+        let dateError = false
+        if (rawDate !== null && rawDate !== undefined && rawDate !== '') {
+          const parsedDate = parseDate(rawDate)
+          if (parsedDate) {
+            date_candidature = parsedDate.toISOString().split('T')[0]
+          } else {
+            date_candidature = new Date().toISOString().split('T')[0]
+            dateError = true
+          }
+        } else {
+          date_candidature = new Date().toISOString().split('T')[0]
+          dateError = true
+        }
+        
+        // Normaliser le statut
+        let statut = 'En attente'
+        let statusError = false
+        if (rawStatus !== null && rawStatus !== undefined && rawStatus !== '') {
+          const normalizedStatus = normalizeStatus(rawStatus)
+          if (normalizedStatus) {
+            statut = normalizedStatus
+          } else {
+            statusError = true
+          }
+        } else {
+          statusError = true
+        }
+        
         const candidature = {
           _rowIndex: rowIndex + 2, // +2 car on commence à la ligne 2 (après header)
-          entreprise: row[autoMapping.entreprise] || '',
-          poste: row[autoMapping.poste] || '',
-          date_candidature: row[autoMapping.date_candidature] || new Date().toISOString().split('T')[0],
-          statut: row[autoMapping.statut] || 'En attente',
-          type_contrat: row[autoMapping.type_contrat] || '',
-          email: row[autoMapping.email] || '',
-          contact: row[autoMapping.contact] || '',
-          lien: row[autoMapping.lien] || '',
-          notes: row[autoMapping.notes] || ''
-        }
-
-        // Valider et formater la date
-        if (candidature.date_candidature) {
-          const date = parseDate(candidature.date_candidature)
-          if (date) {
-            candidature.date_candidature = date.toISOString().split('T')[0]
-          } else {
-            candidature.date_candidature = new Date().toISOString().split('T')[0]
-            candidature._dateError = true
-          }
-        }
-
-        // Valider le statut
-        const validStatuses = ['En attente', 'Entretien', 'Refus']
-        if (!validStatuses.includes(candidature.statut)) {
-          candidature.statut = 'En attente'
-          candidature._statusError = true
+          entreprise: (autoMapping.entreprise !== undefined ? row[autoMapping.entreprise] : '') || '',
+          poste: (autoMapping.poste !== undefined ? row[autoMapping.poste] : '') || '',
+          date_candidature: date_candidature,
+          statut: statut,
+          type_contrat: (autoMapping.type_contrat !== undefined ? row[autoMapping.type_contrat] : '') || '',
+          email: (autoMapping.email !== undefined ? row[autoMapping.email] : '') || '',
+          contact: (autoMapping.contact !== undefined ? row[autoMapping.contact] : '') || '',
+          lien: (autoMapping.lien !== undefined ? row[autoMapping.lien] : '') || '',
+          notes: (autoMapping.notes !== undefined ? row[autoMapping.notes] : '') || '',
+          _dateError: dateError,
+          _statusError: statusError
         }
 
         return candidature
@@ -133,22 +151,80 @@ function ExcelImport() {
     }
   }
 
+  // Normaliser le statut
+  const normalizeStatus = (status) => {
+    if (!status || typeof status !== 'string') return null
+    
+    const statusLower = status.trim().toLowerCase()
+    
+    // Mapping des variations possibles
+    const statusMap = {
+      'en attente': 'En attente',
+      'en_attente': 'En attente',
+      'pending': 'En attente',
+      'waiting': 'En attente',
+      'entretien': 'Entretien',
+      'interview': 'Entretien',
+      'meeting': 'Entretien',
+      'refus': 'Refus',
+      'refused': 'Refus',
+      'rejected': 'Refus',
+      'rejeté': 'Refus',
+      'rejetee': 'Refus'
+    }
+    
+    // Vérifier d'abord dans le mapping
+    if (statusMap[statusLower]) {
+      return statusMap[statusLower]
+    }
+    
+    // Vérifier si c'est déjà un statut valide (avec casse correcte)
+    const validStatuses = ['En attente', 'Entretien', 'Refus']
+    if (validStatuses.includes(status.trim())) {
+      return status.trim()
+    }
+    
+    return null
+  }
+
   // Parser une date depuis Excel (peut être un nombre Excel ou une string)
   const parseDate = (value) => {
-    if (!value) return null
+    if (value === null || value === undefined || value === '') return null
     
     // Si c'est un nombre Excel (date serial)
     if (typeof value === 'number') {
       // Excel date serial starts from 1900-01-01
       const excelEpoch = new Date(1899, 11, 30)
       const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000)
-      return date
+      if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100) {
+        return date
+      }
+      return null
     }
     
-    // Si c'est une string, essayer de la parser
-    const date = new Date(value)
-    if (!isNaN(date.getTime())) {
-      return date
+    // Si c'est une string, essayer plusieurs formats
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) return null
+      
+      // Format ISO (YYYY-MM-DD)
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        const date = new Date(trimmed)
+        if (!isNaN(date.getTime())) return date
+      }
+      
+      // Format français (DD/MM/YYYY ou DD-MM-YYYY)
+      if (/^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/.test(trimmed)) {
+        const parts = trimmed.split(/[\/\-]/)
+        const date = new Date(parts[2], parts[1] - 1, parts[0])
+        if (!isNaN(date.getTime())) return date
+      }
+      
+      // Format avec Date() natif
+      const date = new Date(trimmed)
+      if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100) {
+        return date
+      }
     }
     
     return null
@@ -195,31 +271,53 @@ function ExcelImport() {
       setColumnMapping(autoMapping)
 
       const mappedData = rows.map((row, rowIndex) => {
+        // Récupérer les valeurs brutes
+        const rawDate = autoMapping.date_candidature !== undefined ? row[autoMapping.date_candidature] : null
+        const rawStatus = autoMapping.statut !== undefined ? row[autoMapping.statut] : null
+        
+        // Parser la date
+        let date_candidature = null
+        let dateError = false
+        if (rawDate !== null && rawDate !== undefined && rawDate !== '') {
+          const parsedDate = parseDate(rawDate)
+          if (parsedDate) {
+            date_candidature = parsedDate.toISOString().split('T')[0]
+          } else {
+            date_candidature = new Date().toISOString().split('T')[0]
+            dateError = true
+          }
+        } else {
+          date_candidature = new Date().toISOString().split('T')[0]
+          dateError = true
+        }
+        
+        // Normaliser le statut
+        let statut = 'En attente'
+        let statusError = false
+        if (rawStatus !== null && rawStatus !== undefined && rawStatus !== '') {
+          const normalizedStatus = normalizeStatus(rawStatus)
+          if (normalizedStatus) {
+            statut = normalizedStatus
+          } else {
+            statusError = true
+          }
+        } else {
+          statusError = true
+        }
+        
         const candidature = {
           _rowIndex: rowIndex + 2,
-          entreprise: row[autoMapping.entreprise] || '',
-          poste: row[autoMapping.poste] || '',
-          date_candidature: row[autoMapping.date_candidature] || new Date().toISOString().split('T')[0],
-          statut: row[autoMapping.statut] || 'En attente',
-          type_contrat: row[autoMapping.type_contrat] || '',
-          email: row[autoMapping.email] || '',
-          contact: row[autoMapping.contact] || '',
-          lien: row[autoMapping.lien] || '',
-          notes: row[autoMapping.notes] || ''
-        }
-
-        const date = parseDate(candidature.date_candidature)
-        if (date) {
-          candidature.date_candidature = date.toISOString().split('T')[0]
-        } else {
-          candidature.date_candidature = new Date().toISOString().split('T')[0]
-          candidature._dateError = true
-        }
-
-        const validStatuses = ['En attente', 'Entretien', 'Refus']
-        if (!validStatuses.includes(candidature.statut)) {
-          candidature.statut = 'En attente'
-          candidature._statusError = true
+          entreprise: (autoMapping.entreprise !== undefined ? row[autoMapping.entreprise] : '') || '',
+          poste: (autoMapping.poste !== undefined ? row[autoMapping.poste] : '') || '',
+          date_candidature: date_candidature,
+          statut: statut,
+          type_contrat: (autoMapping.type_contrat !== undefined ? row[autoMapping.type_contrat] : '') || '',
+          email: (autoMapping.email !== undefined ? row[autoMapping.email] : '') || '',
+          contact: (autoMapping.contact !== undefined ? row[autoMapping.contact] : '') || '',
+          lien: (autoMapping.lien !== undefined ? row[autoMapping.lien] : '') || '',
+          notes: (autoMapping.notes !== undefined ? row[autoMapping.notes] : '') || '',
+          _dateError: dateError,
+          _statusError: statusError
         }
 
         return candidature
@@ -313,7 +411,12 @@ function ExcelImport() {
     const templateData = [
       ['Entreprise', 'Poste', 'Date candidature', 'Statut', 'Type contrat', 'Email', 'Contact', 'Lien', 'Notes'],
       ['Google', 'Développeur Full Stack', '2024-01-15', 'En attente', 'CDI', 'recruteur@google.com', 'Jean Dupont', 'https://careers.google.com/jobs/123', 'Candidature spontanée'],
-      ['Microsoft', 'Data Scientist', '2024-01-20', 'Entretien', 'CDI', 'hr@microsoft.com', 'Marie Martin', 'https://careers.microsoft.com/jobs/456', 'Entretien prévu le 25/01']
+      ['Microsoft', 'Data Scientist', '2024-01-20', 'Entretien', 'CDI', 'hr@microsoft.com', 'Marie Martin', 'https://careers.microsoft.com/jobs/456', 'Entretien prévu le 25/01'],
+      ['Apple', 'Product Manager', '15/01/2024', 'Refus', 'CDD', 'jobs@apple.com', 'Sophie Laurent', 'https://jobs.apple.com/123', 'Refus après entretien'],
+      ['', '', '', '', '', '', '', '', ''],
+      ['FORMATS ACCEPTÉS:', '', '', '', '', '', '', '', ''],
+      ['Date:', 'YYYY-MM-DD ou DD/MM/YYYY', '', '', '', '', '', '', ''],
+      ['Statut:', 'En attente, Entretien, Refus', '(insensible à la casse)', '', '', '', '', '', '']
     ]
 
     const ws = XLSX.utils.aoa_to_sheet(templateData)
