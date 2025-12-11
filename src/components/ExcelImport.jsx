@@ -39,13 +39,21 @@ function ExcelImport() {
     const mapping = {}
     headers.forEach((header, index) => {
       if (!header) return
-      const headerLower = header.toLowerCase().trim()
+      const headerLower = String(header).toLowerCase().trim()
       
-      // Chercher dans les mappings
+      // Chercher dans les mappings (correspondance exacte ou partielle)
       for (const [field, possibleNames] of Object.entries(COLUMN_MAPPINGS)) {
-        if (possibleNames.some(name => headerLower.includes(name))) {
+        // Vérifier correspondance exacte d'abord
+        if (possibleNames.some(name => headerLower === name)) {
           mapping[field] = index
           break
+        }
+        // Puis correspondance partielle
+        if (possibleNames.some(name => headerLower.includes(name) || name.includes(headerLower))) {
+          // Ne pas écraser si déjà trouvé
+          if (mapping[field] === undefined) {
+            mapping[field] = index
+          }
         }
       }
     })
@@ -61,9 +69,15 @@ function ExcelImport() {
     
     try {
       const data = await uploadedFile.arrayBuffer()
-      const workbook = XLSX.read(data, { type: 'array' })
+      const workbook = XLSX.read(data, { type: 'array', cellDates: true, cellNF: false, cellText: false })
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
-      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' })
+      // Utiliser raw: false pour obtenir les valeurs formatées, et defval: null pour distinguer les cellules vides
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { 
+        header: 1, 
+        defval: null,
+        raw: false,
+        dateNF: 'yyyy-mm-dd'
+      })
 
       if (jsonData.length === 0) {
         showError('Le fichier Excel est vide')
@@ -72,8 +86,11 @@ function ExcelImport() {
       }
 
       // Première ligne = headers
-      const headers = jsonData[0]
-      const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== ''))
+      const headers = jsonData[0].map(h => {
+        if (h === null || h === undefined) return ''
+        return String(h).trim()
+      })
+      const rows = jsonData.slice(1).filter(row => row && row.some(cell => cell !== null && cell !== undefined && cell !== ''))
 
       if (rows.length === 0) {
         showError('Aucune donnée trouvée dans le fichier')
@@ -84,25 +101,63 @@ function ExcelImport() {
       // Mapping automatique
       const autoMapping = findColumnMapping(headers)
       setColumnMapping(autoMapping)
+      
+      // Debug: afficher le mapping trouvé
+      console.log('Headers trouvés:', headers)
+      console.log('Mapping automatique:', autoMapping)
 
       // Préparer les données avec le mapping
       const mappedData = rows.map((row, rowIndex) => {
-        // Récupérer les valeurs brutes
-        const rawDate = autoMapping.date_candidature !== undefined ? row[autoMapping.date_candidature] : null
-        const rawStatus = autoMapping.statut !== undefined ? row[autoMapping.statut] : null
+        // Fonction helper pour extraire une valeur (garde le type original)
+        const getRawValue = (field) => {
+          if (autoMapping[field] === undefined) {
+            if (rowIndex === 0) {
+              console.log(`Colonne ${field} non trouvée dans le mapping`)
+            }
+            return null
+          }
+          const colIndex = autoMapping[field]
+          const value = row[colIndex]
+          
+          // Debug pour la première ligne
+          if (rowIndex === 0 && (field === 'date_candidature' || field === 'statut')) {
+            console.log(`Valeur brute pour ${field} (colonne ${colIndex}):`, value, 'Type:', typeof value)
+          }
+          
+          if (value === null || value === undefined || value === '') return null
+          
+          // Retourner la valeur telle quelle (nombre, string, date, etc.)
+          return value
+        }
+        
+        // Récupérer les valeurs brutes (garder le type original)
+        const rawDate = getRawValue('date_candidature')
+        const rawStatus = getRawValue('statut')
+        
+        // Debug pour la première ligne
+        if (rowIndex === 0) {
+          console.log('Première ligne brute:', row)
+          console.log('Date brute:', rawDate, 'Type:', typeof rawDate)
+          console.log('Statut brut:', rawStatus, 'Type:', typeof rawStatus)
+        }
         
         // Parser la date
         let date_candidature = null
         let dateError = false
-        if (rawDate !== null && rawDate !== undefined && rawDate !== '') {
+        if (rawDate) {
           const parsedDate = parseDate(rawDate)
           if (parsedDate) {
             date_candidature = parsedDate.toISOString().split('T')[0]
           } else {
+            // Si le parsing échoue, utiliser la date du jour mais marquer l'erreur
             date_candidature = new Date().toISOString().split('T')[0]
             dateError = true
+            if (rowIndex === 0) {
+              console.warn('Date non parsable:', rawDate)
+            }
           }
         } else {
+          // Pas de date trouvée dans le fichier
           date_candidature = new Date().toISOString().split('T')[0]
           dateError = true
         }
@@ -110,30 +165,45 @@ function ExcelImport() {
         // Normaliser le statut
         let statut = 'En attente'
         let statusError = false
-        if (rawStatus !== null && rawStatus !== undefined && rawStatus !== '') {
+        if (rawStatus) {
           const normalizedStatus = normalizeStatus(rawStatus)
           if (normalizedStatus) {
             statut = normalizedStatus
           } else {
+            // Statut non reconnu
             statusError = true
+            if (rowIndex === 0) {
+              console.warn('Statut non reconnu:', rawStatus)
+            }
           }
         } else {
+          // Pas de statut trouvé dans le fichier
           statusError = true
+        }
+        
+        // Helper pour convertir les valeurs en string
+        const getStringValue = (field) => {
+          const val = getRawValue(field)
+          if (val === null) return ''
+          if (val instanceof Date) return val.toISOString().split('T')[0]
+          return String(val).trim()
         }
         
         const candidature = {
           _rowIndex: rowIndex + 2, // +2 car on commence à la ligne 2 (après header)
-          entreprise: (autoMapping.entreprise !== undefined ? row[autoMapping.entreprise] : '') || '',
-          poste: (autoMapping.poste !== undefined ? row[autoMapping.poste] : '') || '',
+          entreprise: getStringValue('entreprise') || '',
+          poste: getStringValue('poste') || '',
           date_candidature: date_candidature,
           statut: statut,
-          type_contrat: (autoMapping.type_contrat !== undefined ? row[autoMapping.type_contrat] : '') || '',
-          email: (autoMapping.email !== undefined ? row[autoMapping.email] : '') || '',
-          contact: (autoMapping.contact !== undefined ? row[autoMapping.contact] : '') || '',
-          lien: (autoMapping.lien !== undefined ? row[autoMapping.lien] : '') || '',
-          notes: (autoMapping.notes !== undefined ? row[autoMapping.notes] : '') || '',
+          type_contrat: getStringValue('type_contrat') || '',
+          email: getStringValue('email') || '',
+          contact: getStringValue('contact') || '',
+          lien: getStringValue('lien') || '',
+          notes: getStringValue('notes') || '',
           _dateError: dateError,
-          _statusError: statusError
+          _statusError: statusError,
+          _rawDate: rawDate, // Garder la valeur brute pour debug
+          _rawStatus: rawStatus // Garder la valeur brute pour debug
         }
 
         return candidature
@@ -153,24 +223,39 @@ function ExcelImport() {
 
   // Normaliser le statut
   const normalizeStatus = (status) => {
-    if (!status || typeof status !== 'string') return null
+    if (!status) return null
     
-    const statusLower = status.trim().toLowerCase()
+    // Convertir en string si nécessaire
+    const statusStr = String(status).trim()
+    if (!statusStr) return null
     
-    // Mapping des variations possibles
+    // Normaliser les accents et convertir en minuscules
+    const statusLower = statusStr
+      .toLowerCase()
+      .normalize('NFD') // Décompose les caractères accentués
+      .replace(/[\u0300-\u036f]/g, '') // Supprime les accents
+      .trim()
+    
+    // Mapping des variations possibles (sans accents)
     const statusMap = {
       'en attente': 'En attente',
       'en_attente': 'En attente',
       'pending': 'En attente',
       'waiting': 'En attente',
+      'en cours': 'En attente',
+      'in progress': 'En attente',
       'entretien': 'Entretien',
       'interview': 'Entretien',
       'meeting': 'Entretien',
+      'entretien prevu': 'Entretien',
+      'entretien prévu': 'Entretien',
       'refus': 'Refus',
       'refused': 'Refus',
       'rejected': 'Refus',
-      'rejeté': 'Refus',
-      'rejetee': 'Refus'
+      'rejete': 'Refus',
+      'rejetee': 'Refus',
+      'refuse': 'Refus',
+      'refusee': 'Refus'
     }
     
     // Vérifier d'abord dans le mapping
@@ -180,8 +265,8 @@ function ExcelImport() {
     
     // Vérifier si c'est déjà un statut valide (avec casse correcte)
     const validStatuses = ['En attente', 'Entretien', 'Refus']
-    if (validStatuses.includes(status.trim())) {
-      return status.trim()
+    if (validStatuses.includes(statusStr)) {
+      return statusStr
     }
     
     return null
@@ -191,10 +276,11 @@ function ExcelImport() {
   const parseDate = (value) => {
     if (value === null || value === undefined || value === '') return null
     
-    // Si c'est un nombre Excel (date serial)
+    // Si c'est un nombre Excel (date serial) - IMPORTANT: vérifier le type AVANT conversion
     if (typeof value === 'number') {
       // Excel date serial starts from 1900-01-01
-      const excelEpoch = new Date(1899, 11, 30)
+      // Note: Excel compte le 1er janvier 1900 comme jour 1, mais JavaScript compte différemment
+      const excelEpoch = new Date(1899, 11, 30) // 30 décembre 1899
       const date = new Date(excelEpoch.getTime() + value * 24 * 60 * 60 * 1000)
       if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100) {
         return date
@@ -202,10 +288,21 @@ function ExcelImport() {
       return null
     }
     
-    // Si c'est une string, essayer plusieurs formats
+    // Si c'est une string qui représente un nombre (date Excel serial en string)
     if (typeof value === 'string') {
       const trimmed = value.trim()
       if (!trimmed) return null
+      
+      // Vérifier si c'est un nombre (date Excel serial en string)
+      const numValue = Number(trimmed)
+      if (!isNaN(numValue) && numValue > 0 && numValue < 100000) {
+        // Probablement une date Excel serial
+        const excelEpoch = new Date(1899, 11, 30)
+        const date = new Date(excelEpoch.getTime() + numValue * 24 * 60 * 60 * 1000)
+        if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100) {
+          return date
+        }
+      }
       
       // Format ISO (YYYY-MM-DD)
       if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
@@ -264,21 +361,35 @@ function ExcelImport() {
         return
       }
 
-      const headers = jsonData[0]
+      const headers = jsonData[0].map(h => h ? String(h).trim() : '')
       const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== ''))
 
       const autoMapping = findColumnMapping(headers)
       setColumnMapping(autoMapping)
+      
+      // Debug: afficher le mapping trouvé
+      console.log('Headers trouvés (Google Sheets):', headers)
+      console.log('Mapping automatique (Google Sheets):', autoMapping)
 
       const mappedData = rows.map((row, rowIndex) => {
-        // Récupérer les valeurs brutes
-        const rawDate = autoMapping.date_candidature !== undefined ? row[autoMapping.date_candidature] : null
-        const rawStatus = autoMapping.statut !== undefined ? row[autoMapping.statut] : null
+        // Fonction helper pour extraire une valeur (garde le type original)
+        const getRawValue = (field) => {
+          if (autoMapping[field] === undefined) return null
+          const colIndex = autoMapping[field]
+          const value = row[colIndex]
+          if (value === null || value === undefined || value === '') return null
+          // Retourner la valeur telle quelle (nombre, string, date, etc.)
+          return value
+        }
+        
+        // Récupérer les valeurs brutes (garder le type original)
+        const rawDate = getRawValue('date_candidature')
+        const rawStatus = getRawValue('statut')
         
         // Parser la date
         let date_candidature = null
         let dateError = false
-        if (rawDate !== null && rawDate !== undefined && rawDate !== '') {
+        if (rawDate) {
           const parsedDate = parseDate(rawDate)
           if (parsedDate) {
             date_candidature = parsedDate.toISOString().split('T')[0]
@@ -294,7 +405,7 @@ function ExcelImport() {
         // Normaliser le statut
         let statut = 'En attente'
         let statusError = false
-        if (rawStatus !== null && rawStatus !== undefined && rawStatus !== '') {
+        if (rawStatus) {
           const normalizedStatus = normalizeStatus(rawStatus)
           if (normalizedStatus) {
             statut = normalizedStatus
@@ -305,19 +416,29 @@ function ExcelImport() {
           statusError = true
         }
         
+        // Helper pour convertir les valeurs en string
+        const getStringValue = (field) => {
+          const val = getRawValue(field)
+          if (val === null) return ''
+          if (val instanceof Date) return val.toISOString().split('T')[0]
+          return String(val).trim()
+        }
+        
         const candidature = {
           _rowIndex: rowIndex + 2,
-          entreprise: (autoMapping.entreprise !== undefined ? row[autoMapping.entreprise] : '') || '',
-          poste: (autoMapping.poste !== undefined ? row[autoMapping.poste] : '') || '',
+          entreprise: getStringValue('entreprise') || '',
+          poste: getStringValue('poste') || '',
           date_candidature: date_candidature,
           statut: statut,
-          type_contrat: (autoMapping.type_contrat !== undefined ? row[autoMapping.type_contrat] : '') || '',
-          email: (autoMapping.email !== undefined ? row[autoMapping.email] : '') || '',
-          contact: (autoMapping.contact !== undefined ? row[autoMapping.contact] : '') || '',
-          lien: (autoMapping.lien !== undefined ? row[autoMapping.lien] : '') || '',
-          notes: (autoMapping.notes !== undefined ? row[autoMapping.notes] : '') || '',
+          type_contrat: getStringValue('type_contrat') || '',
+          email: getStringValue('email') || '',
+          contact: getStringValue('contact') || '',
+          lien: getStringValue('lien') || '',
+          notes: getStringValue('notes') || '',
           _dateError: dateError,
-          _statusError: statusError
+          _statusError: statusError,
+          _rawDate: rawDate,
+          _rawStatus: rawStatus
         }
 
         return candidature
@@ -560,6 +681,25 @@ function ExcelImport() {
         </div>
       </div>
 
+      {/* Mapping Debug Info */}
+      {showPreview && Object.keys(columnMapping).length > 0 && (
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+          <h4 className="text-sm font-semibold text-blue-300 mb-2">Mapping des colonnes détecté :</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            {Object.entries(columnMapping).map(([field, index]) => (
+              <div key={field} className="text-blue-200">
+                <span className="font-medium">{field}:</span> Colonne {index + 1}
+              </div>
+            ))}
+          </div>
+          {Object.keys(columnMapping).length < 4 && (
+            <p className="text-xs text-orange-400 mt-2">
+              ⚠️ Certaines colonnes importantes n'ont pas été détectées. Vérifiez les noms de colonnes dans votre fichier.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Preview */}
       {showPreview && parsedData.length > 0 && (
         <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/20 shadow-lg">
@@ -600,20 +740,32 @@ function ExcelImport() {
                       <td className="p-3 text-gray-300">{row.entreprise || '-'}</td>
                       <td className="p-3 text-gray-300">{row.poste || '-'}</td>
                       <td className="p-3 text-gray-300">
-                        {row.date_candidature}
-                        {row._dateError && (
-                          <span className="ml-2 text-xs text-orange-400" title="Date invalide, date du jour utilisée">
-                            ⚠️
-                          </span>
-                        )}
+                        <div className="flex flex-col">
+                          <span>{row.date_candidature}</span>
+                          {row._dateError && (
+                            <div className="text-xs text-orange-400 mt-1">
+                              {row._rawDate ? (
+                                <span title="Format non reconnu">⚠️ Original: "{row._rawDate}"</span>
+                              ) : (
+                                <span title="Colonne non trouvée">⚠️ Colonne date non détectée</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3 text-gray-300">
-                        {row.statut}
-                        {row._statusError && (
-                          <span className="ml-2 text-xs text-orange-400" title="Statut invalide, 'En attente' utilisé">
-                            ⚠️
-                          </span>
-                        )}
+                        <div className="flex flex-col">
+                          <span>{row.statut}</span>
+                          {row._statusError && (
+                            <div className="text-xs text-orange-400 mt-1">
+                              {row._rawStatus ? (
+                                <span title="Statut non reconnu">⚠️ Original: "{row._rawStatus}"</span>
+                              ) : (
+                                <span title="Colonne non trouvée">⚠️ Colonne statut non détectée</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3 text-gray-300">{row.type_contrat || '-'}</td>
                       <td className="p-3 text-gray-300">{row.email || '-'}</td>
