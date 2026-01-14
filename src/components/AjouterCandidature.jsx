@@ -53,9 +53,13 @@ function AjouterCandidature() {
     if (!formData.date_candidature) {
       newErrors.date_candidature = 'La date de candidature est requise'
     } else {
-      const date = new Date(formData.date_candidature)
+      // Créer les dates en heure locale pour éviter les problèmes de timezone
+      const dateStr = formData.date_candidature
+      const [year, month, day] = dateStr.split('-').map(Number)
+      const date = new Date(year, month - 1, day)
       const today = new Date()
       today.setHours(0, 0, 0, 0)
+      // Permettre la date d'aujourd'hui (date > today bloque seulement les dates futures)
       if (date > today) {
         newErrors.date_candidature = 'La date ne peut pas être dans le futur'
       }

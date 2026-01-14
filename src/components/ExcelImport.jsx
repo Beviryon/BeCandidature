@@ -317,6 +317,16 @@ function ExcelImport() {
         if (!isNaN(date.getTime())) return date
       }
       
+      // Format français avec année à 2 chiffres (DD/MM/YY ou DD-MM-YY)
+      if (/^\d{2}[\/\-]\d{2}[\/\-]\d{2}$/.test(trimmed)) {
+        const parts = trimmed.split(/[\/\-]/)
+        const year = parseInt(parts[2])
+        // Interpréter les années à 2 chiffres : 00-30 = 2000-2030, 31-99 = 1931-1999
+        const fullYear = year <= 30 ? 2000 + year : 1900 + year
+        const date = new Date(fullYear, parts[1] - 1, parts[0])
+        if (!isNaN(date.getTime())) return date
+      }
+      
       // Format avec Date() natif
       const date = new Date(trimmed)
       if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100) {
