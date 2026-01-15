@@ -24,6 +24,7 @@ import {
 import { useCandidatures } from '../hooks/useCandidatures'
 import Loading from './Loading'
 import { useToast } from '../contexts/ToastContext'
+import { isGoogleAuthenticated, initializeGoogleCalendar, createCalendarEvent } from '../services/calendarService'
 
 const STATUS_OPTIONS = [
   { value: 'En attente', label: 'En attente', color: 'text-orange-400' },
