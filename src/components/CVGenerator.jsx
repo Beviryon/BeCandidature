@@ -350,9 +350,29 @@ function CVGenerator() {
     const targetKeywords = extractKeywords(formData.cibleAts).slice(0, 30)
     const uniqueKeywords = [...new Set(targetKeywords)]
     const matchedKeywords = uniqueKeywords.filter((kw) => normalizedCvText.includes(kw))
+    const missingKeywords = uniqueKeywords.filter((kw) => !normalizedCvText.includes(kw))
     const keywordMatchRate = uniqueKeywords.length === 0
       ? null
       : Math.round((matchedKeywords.length / uniqueKeywords.length) * 100)
+
+    const getSectionMatchRate = (text) => {
+      if (uniqueKeywords.length === 0) return null
+      const normalizedText = String(text || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+      const sectionMatches = uniqueKeywords.filter((kw) => normalizedText.includes(kw)).length
+      return Math.round((sectionMatches / uniqueKeywords.length) * 100)
+    }
+
+    const sectionScores = {
+      titre: hasTitle ? (getSectionMatchRate(formData.titre) ?? 0) : 0,
+      resume: hasSummary ? (getSectionMatchRate(formData.resume) ?? 0) : 0,
+      experiences: hasExperience
+        ? (getSectionMatchRate(formData.experiences.map((exp) => `${exp.poste} ${exp.entreprise} ${exp.description}`).join(' ')) ?? 0)
+        : 0,
+      competences: hasSkills ? (getSectionMatchRate(formData.competences) ?? 0) : 0
+    }
 
     let score = 0
     if (hasIdentity) score += 10
@@ -376,8 +396,14 @@ function CVGenerator() {
     if (!formData.cibleAts?.trim()) {
       recommendations.push('Colle une offre cible pour mesurer la correspondance ATS en temps réel.')
     }
+    if (missingKeywords.length > 0 && hasSkills) {
+      recommendations.push('Ajoute les mots-clés manquants dans la section compétences et dans 1 à 2 expériences.')
+    }
 
     const scoreBand = score >= 80 ? 'excellent' : score >= 60 ? 'bon' : score >= 40 ? 'moyen' : 'faible'
+    const suggestedAtsSentence = missingKeywords.length > 0
+      ? `Environnement et missions en lien avec ${missingKeywords.slice(0, 4).join(', ')}.`
+      : ''
 
     return {
       score: Math.min(score, 100),
@@ -385,9 +411,42 @@ function CVGenerator() {
       keywordMatchRate,
       targetKeywords: uniqueKeywords,
       matchedKeywords,
+      missingKeywords,
+      sectionScores,
+      suggestedAtsSentence,
       recommendations
     }
   }, [formData])
+
+  const insertMissingKeywordsInSkills = () => {
+    const missing = atsAnalysis.missingKeywords.slice(0, 12)
+    if (missing.length === 0) {
+      showError('Aucun mot-clé manquant détecté à ajouter.')
+      return
+    }
+
+    const existing = (formData.competences || '').trim()
+    const keywordChunk = missing.join(', ')
+    const nextSkills = existing ? `${existing}\n${keywordChunk}` : keywordChunk
+
+    setFormData((prev) => ({ ...prev, competences: nextSkills }))
+    success('Mots-clés manquants ajoutés dans Compétences.')
+  }
+
+  const addAtsSentenceToResume = () => {
+    if (!atsAnalysis.suggestedAtsSentence) {
+      showError('Aucune suggestion ATS disponible pour le résumé.')
+      return
+    }
+
+    const existingResume = (formData.resume || '').trim()
+    const nextResume = existingResume
+      ? `${existingResume}\n${atsAnalysis.suggestedAtsSentence}`
+      : atsAnalysis.suggestedAtsSentence
+
+    setFormData((prev) => ({ ...prev, resume: nextResume }))
+    success('Suggestion ATS ajoutée au résumé.')
+  }
 
   const cvServices = [
     {
@@ -1154,6 +1213,41 @@ function CVGenerator() {
               </div>
             )}
 
+            {atsAnalysis.missingKeywords.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Mots-clés manquants</p>
+                <div className="flex flex-wrap gap-1">
+                  {atsAnalysis.missingKeywords.slice(0, 10).map((kw) => (
+                    <span key={kw} className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30">
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mb-3">
+              <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Score par section</p>
+              <div className="space-y-2">
+                {[
+                  ['Titre', atsAnalysis.sectionScores.titre],
+                  ['Résumé', atsAnalysis.sectionScores.resume],
+                  ['Expériences', atsAnalysis.sectionScores.experiences],
+                  ['Compétences', atsAnalysis.sectionScores.competences]
+                ].map(([label, value]) => (
+                  <div key={label} className="text-xs">
+                    <div className="flex justify-between text-gray-600 dark:text-gray-300 mb-1">
+                      <span>{label}</span>
+                      <span>{value}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500" style={{ width: `${value}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div>
               <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Actions prioritaires</p>
               <ul className="space-y-1">
@@ -1163,6 +1257,23 @@ function CVGenerator() {
                   </li>
                 ))}
               </ul>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={insertMissingKeywordsInSkills}
+                className="text-xs px-3 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-700 dark:text-purple-300 border border-purple-500/30 transition-colors"
+              >
+                Ajouter les mots-clés manquants (1 clic)
+              </button>
+              <button
+                type="button"
+                onClick={addAtsSentenceToResume}
+                className="text-xs px-3 py-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 text-blue-700 dark:text-blue-300 border border-blue-500/30 transition-colors"
+              >
+                Ajouter une phrase ATS au résumé
+              </button>
             </div>
           </div>
         </div>
