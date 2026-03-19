@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Mail, Lock, LogIn, Sparkles, AlertCircle, Eye, EyeOff } from 'lucide-react'
-import { signInWithEmailAndPassword } from 'firebase/auth'
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'
 import { auth } from '../firebaseConfig'
 import { DEMO_MODE, DEMO_USER } from '../demoData'
 import { handleFirebaseError } from '../utils/firebaseErrors'
@@ -12,6 +12,7 @@ function Login() {
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [resetInfo, setResetInfo] = useState(null)
   const navigate = useNavigate()
 
   const handleLogin = async (e) => {
@@ -19,9 +20,11 @@ function Login() {
     setError(null)
     setLoading(true)
 
+    const normalizedEmail = email.trim().toLowerCase()
+
     try {
       // Mode DÉMO
-      if (DEMO_MODE && email === DEMO_USER.email && password === DEMO_USER.password) {
+      if (DEMO_MODE && normalizedEmail === DEMO_USER.email && password === DEMO_USER.password) {
         localStorage.setItem('demo_session', JSON.stringify({
           user: { id: DEMO_USER.id, email: DEMO_USER.email },
           access_token: 'demo-token'
@@ -34,12 +37,30 @@ function Login() {
       }
 
       // Mode Firebase normal
-      await signInWithEmailAndPassword(auth, email, password)
+      await signInWithEmailAndPassword(auth, normalizedEmail, password)
       navigate('/')
     } catch (error) {
       setError(handleFirebaseError(error))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleForgotPassword = async () => {
+    const normalizedEmail = email.trim().toLowerCase()
+    setError(null)
+    setResetInfo(null)
+
+    if (!normalizedEmail) {
+      setError('❌ Entrez votre email avant de demander la réinitialisation.')
+      return
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, normalizedEmail)
+      setResetInfo('📩 Email de réinitialisation envoyé. Vérifiez votre boîte de réception.')
+    } catch (error) {
+      setError(handleFirebaseError(error))
     }
   }
 
@@ -88,6 +109,14 @@ function Login() {
               <div className="flex items-center space-x-2">
                 <AlertCircle className="w-5 h-5 text-red-400" />
                 <span className="text-sm text-red-300">{error}</span>
+              </div>
+            </div>
+          )}
+
+          {resetInfo && (
+            <div className="mb-6 p-4 rounded-xl bg-green-500/10 border border-green-500/30 animate-fade-in">
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-green-300">{resetInfo}</span>
               </div>
             </div>
           )}
@@ -173,6 +202,16 @@ function Login() {
                 </>
               )}
             </button>
+
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                Mot de passe oublié ?
+              </button>
+            </div>
           </form>
 
           {/* Register link */}

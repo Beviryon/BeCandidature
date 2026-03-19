@@ -1,27 +1,55 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Collection USERS - Système d'approbation admin
-    match /users/{userId} {
-      // Permettre la création lors de l'inscription
-      allow create: if request.auth != null && request.auth.uid == userId;
-      
-      // Lecture/Modification : l'utilisateur lui-même
-      allow read, update: if request.auth != null && request.auth.uid == userId;
-      
-      // Lecture/Modification complète : les admins
-      allow read, write: if request.auth != null && 
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
-    
-    // Collection CANDIDATURES - Accessible aux utilisateurs authentifiés
+
+    function candidatureOwnedByCurrentUser(data) {
+      return data.userId == request.auth.uid || data.user_id == request.auth.uid;
+    }
+
+    // Collection USERS - Système d'approbation admin sécurisé
+    match /users/{userId} {
+      // Lecture : utilisateur lui-même ou admin
+      allow read: if isOwner(userId) || isAdmin();
+
+      // Création lors de l'inscription : rôle/statut imposés
+      allow create: if isOwner(userId)
+        && request.resource.data.role == 'user'
+        && (request.resource.data.status == 'pending' || request.resource.data.status == 'active')
+        && request.resource.data.email is string;
+
+      // Update utilisateur : on interdit de changer les champs sensibles
+      allow update: if (
+        isOwner(userId)
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.email == resource.data.email
+      ) || isAdmin();
+
+      // Suppression uniquement admin
+      allow delete: if isAdmin();
+    }
+
+    // Collection CANDIDATURES - Strictement isolée par utilisateur
     match /candidatures/{candidatureId} {
-      // Tous les utilisateurs authentifiés peuvent lire/écrire leurs candidatures
-      allow read, write, create, update, delete: if request.auth != null;
+      allow create: if isAuthenticated() && candidatureOwnedByCurrentUser(request.resource.data);
+      allow read, delete: if isAuthenticated() && candidatureOwnedByCurrentUser(resource.data);
+      allow update: if isAuthenticated()
+        && candidatureOwnedByCurrentUser(resource.data)
+        && candidatureOwnedByCurrentUser(request.resource.data);
     }
   }
 }
-
-

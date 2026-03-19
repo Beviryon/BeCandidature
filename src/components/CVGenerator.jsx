@@ -34,6 +34,7 @@ function CVGenerator() {
   const [showPreview, setShowPreview] = useState(true)
   const [downloadCount, setDownloadCount] = useState(0)
   const [activeSection, setActiveSection] = useState('personal')
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
   useEffect(() => {
     const savedCV = localStorage.getItem('cv_data')
@@ -79,8 +80,36 @@ function CVGenerator() {
     success('CV sauvegardé avec succès !')
   }
 
+  const sanitizePdfText = (value = '') => {
+    // jsPDF (police standard) supporte mal certains caractères (notamment emojis)
+    return String(value)
+      .normalize('NFKD')
+      .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .replace(/[^\x20-\x7E\n]/g, ' ')
+      .replace(/[ ]{2,}/g, ' ')
+  }
+
+  const buildSafeFilename = () => {
+    const rawName = `CV_${formData.prenom || ''}_${formData.nom || 'Candidat'}`
+    const sanitized = rawName
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+      .replace(/\s+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+    return `${sanitized || 'CV_Candidat'}.pdf`
+  }
+
   const generatePDF = async () => {
+    if (!formData.nom || !formData.prenom) {
+      showError('Veuillez remplir au minimum le prénom et le nom.')
+      return
+    }
+
     try {
+      setIsGeneratingPdf(true)
       // Utiliser html2canvas si disponible, sinon fallback sur jsPDF basique
       const doc = new jsPDF('p', 'mm', 'a4')
       const pageWidth = doc.internal.pageSize.getWidth()
@@ -96,11 +125,11 @@ function CVGenerator() {
         doc.setTextColor(255, 255, 255)
         doc.setFontSize(28)
         doc.setFont('helvetica', 'bold')
-        doc.text(`${formData.prenom} ${formData.nom}`, 20, 25)
+        doc.text(sanitizePdfText(`${formData.prenom} ${formData.nom}`), 20, 25)
         
         doc.setFontSize(14)
         doc.setFont('helvetica', 'normal')
-        doc.text(formData.titre || '', 20, 32)
+        doc.text(sanitizePdfText(formData.titre || ''), 20, 32)
         
         y = 50
         
@@ -108,16 +137,17 @@ function CVGenerator() {
         doc.setTextColor(0, 0, 0)
         doc.setFontSize(10)
         const contactInfo = []
-        if (formData.email) contactInfo.push(`📧 ${formData.email}`)
-        if (formData.telephone) contactInfo.push(`📱 ${formData.telephone}`)
-        if (formData.adresse) contactInfo.push(`📍 ${formData.adresse}`)
-        if (formData.linkedin) contactInfo.push(`💼 ${formData.linkedin}`)
+        if (formData.email) contactInfo.push(`Email: ${formData.email}`)
+        if (formData.telephone) contactInfo.push(`Tel: ${formData.telephone}`)
+        if (formData.adresse) contactInfo.push(`Adresse: ${formData.adresse}`)
+        if (formData.linkedin) contactInfo.push(`LinkedIn: ${formData.linkedin}`)
         
-        contactInfo.forEach((info, i) => {
-          doc.text(info, 20 + (i * 45), y)
+        contactInfo.forEach((info) => {
+          doc.text(sanitizePdfText(info), 20, y)
+          y += 5
         })
-        
-        y += 15
+
+        y += 6
         
         // Profil
         if (formData.resume) {
@@ -132,7 +162,7 @@ function CVGenerator() {
           doc.setTextColor(0, 0, 0)
           doc.setFontSize(10)
           doc.setFont('helvetica', 'normal')
-          const resumeLines = doc.splitTextToSize(formData.resume, pageWidth - 40)
+          const resumeLines = doc.splitTextToSize(sanitizePdfText(formData.resume), pageWidth - 40)
           doc.text(resumeLines, 20, y)
           y += resumeLines.length * 5 + 5
         }
@@ -162,19 +192,19 @@ function CVGenerator() {
               doc.setTextColor(0, 0, 0)
               doc.setFontSize(11)
               doc.setFont('helvetica', 'bold')
-              doc.text(`${exp.poste}`, 20, y)
+              doc.text(sanitizePdfText(`${exp.poste}`), 20, y)
               doc.setFont('helvetica', 'normal')
               doc.setFontSize(10)
-              doc.text(`${exp.entreprise}`, 20, y + 6)
+              doc.text(sanitizePdfText(`${exp.entreprise}`), 20, y + 6)
               doc.setFontSize(9)
               doc.setTextColor(100, 100, 100)
-              doc.text(`${exp.debut} - ${exp.fin}`, 20, y + 11)
+              doc.text(sanitizePdfText(`${exp.debut} - ${exp.fin}`), 20, y + 11)
               
               if (exp.description) {
                 y += 16
                 doc.setFontSize(9)
                 doc.setTextColor(0, 0, 0)
-                const descLines = doc.splitTextToSize(exp.description, pageWidth - 40)
+                const descLines = doc.splitTextToSize(sanitizePdfText(exp.description), pageWidth - 40)
                 doc.text(descLines, 20, y)
                 y += descLines.length * 4
               }
@@ -208,13 +238,13 @@ function CVGenerator() {
               doc.setTextColor(0, 0, 0)
               doc.setFontSize(11)
               doc.setFont('helvetica', 'bold')
-              doc.text(`${form.diplome}`, 20, y)
+              doc.text(sanitizePdfText(`${form.diplome}`), 20, y)
               doc.setFont('helvetica', 'normal')
               doc.setFontSize(10)
-              doc.text(`${form.ecole}`, 20, y + 6)
+              doc.text(sanitizePdfText(`${form.ecole}`), 20, y + 6)
               doc.setFontSize(9)
               doc.setTextColor(100, 100, 100)
-              doc.text(`${form.annee}`, 20, y + 11)
+              doc.text(sanitizePdfText(`${form.annee}`), 20, y + 11)
               y += 18
             }
           })
@@ -238,12 +268,25 @@ function CVGenerator() {
           doc.setTextColor(0, 0, 0)
           doc.setFontSize(10)
           doc.setFont('helvetica', 'normal')
-          const compLines = doc.splitTextToSize(formData.competences, pageWidth - 40)
+          const compLines = doc.splitTextToSize(sanitizePdfText(formData.competences), pageWidth - 40)
           doc.text(compLines, 20, y)
         }
       }
-
-      doc.save(`CV_${formData.prenom}_${formData.nom || 'Candidat'}.pdf`)
+      const fileName = buildSafeFilename()
+      try {
+        doc.save(fileName)
+      } catch {
+        // Fallback pour navigateurs/environnements où save() est bloqué
+        const blob = doc.output('blob')
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = fileName
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        URL.revokeObjectURL(url)
+      }
       
       const newCount = downloadCount + 1
       setDownloadCount(newCount)
@@ -251,7 +294,9 @@ function CVGenerator() {
       success('CV téléchargé avec succès !')
     } catch (err) {
       console.error('Erreur génération PDF:', err)
-      showError('Erreur lors de la génération du PDF')
+      showError(`Erreur lors de la génération du PDF${err?.message ? ` : ${err.message}` : ''}`)
+    } finally {
+      setIsGeneratingPdf(false)
     }
   }
 
@@ -839,9 +884,9 @@ function CVGenerator() {
               <Save className="w-4 h-4" />
               <span>Sauvegarder</span>
             </button>
-            <button onClick={generatePDF} disabled={!formData.nom || !formData.prenom} className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+            <button onClick={generatePDF} disabled={!formData.nom || !formData.prenom || isGeneratingPdf} className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed">
               <Download className="w-4 h-4" />
-              <span>Télécharger PDF</span>
+              <span>{isGeneratingPdf ? 'Génération...' : 'Télécharger PDF'}</span>
             </button>
           </div>
         </div>

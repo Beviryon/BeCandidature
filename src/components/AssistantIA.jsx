@@ -20,7 +20,7 @@ function AssistantIA() {
   const [loading, setLoading] = useState(false)
   const [copiedIndex, setCopiedIndex] = useState(null)
   const [selectedMode, setSelectedMode] = useState(null)
-  const apiEnabled = !!import.meta.env.VITE_OPENAI_API_KEY
+  const apiEnabled = !!import.meta.env.VITE_AI_FUNCTION_URL
 
   const assistantModes = [
     {
@@ -170,9 +170,9 @@ function AssistantIA() {
               <h2 className="text-4xl font-bold text-white mb-2 flex items-center space-x-3">
                 <span>Assistant IA</span>
                 {apiEnabled && (
-                  <span className="text-sm font-normal bg-white/20 px-3 py-1 rounded-full flex items-center space-x-1">
+                    <span className="text-sm font-normal bg-white/20 px-3 py-1 rounded-full flex items-center space-x-1">
                     <Stars className="w-4 h-4" />
-                    <span>GPT-4</span>
+                      <span>IA sécurisée</span>
                   </span>
                 )}
               </h2>
@@ -409,10 +409,10 @@ function AssistantIA() {
             {apiEnabled ? (
               <>
                 <h4 className="font-bold text-green-700 dark:text-green-300 mb-1 flex items-center space-x-2">
-                  <span>✅ API OpenAI activée</span>
+                  <span>✅ IA backend activée</span>
                 </h4>
                 <p className="text-sm text-green-600 dark:text-green-400">
-                  L&apos;assistant utilise GPT-4 pour des réponses ultra-personnalisées et intelligentes. Profitez de toute la puissance de l&apos;IA !
+                  L&apos;assistant utilise une Cloud Function Firebase pour appeler OpenAI côté serveur, sans exposer la clé API dans le navigateur.
                 </p>
               </>
             ) : (
@@ -421,11 +421,11 @@ function AssistantIA() {
                   💡 Mode démo activé
                 </h4>
                 <p className="text-sm text-blue-600 dark:text-blue-400 mb-3">
-                  L&apos;assistant utilise des réponses pré-programmées. Pour activer GPT-4 et bénéficier de réponses personnalisées, ajoutez votre clé API OpenAI.
+                  L&apos;assistant utilise des réponses pré-programmées. Pour activer l&apos;IA sécurisée, configurez l&apos;URL de la Cloud Function dans vos variables d&apos;environnement.
                 </p>
                 <div className="bg-white/50 dark:bg-black/40 rounded-xl p-3 border border-blue-500/20">
                   <code className="text-xs text-gray-800 dark:text-gray-200">
-                    VITE_OPENAI_API_KEY=sk-votre-clé-api
+                    VITE_AI_FUNCTION_URL=https://&lt;region&gt;-&lt;project-id&gt;.cloudfunctions.net/generateAIResponse
                   </code>
                 </div>
               </>

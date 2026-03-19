@@ -1,21 +1,6 @@
-import OpenAI from 'openai'
+import { auth } from '../firebaseConfig'
 
-// Initialiser le client OpenAI
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true // Uniquement pour le développement
-})
-
-// Système prompt pour l'assistant de candidatures
-const SYSTEM_PROMPT = `Tu es un assistant IA de BeCandidature expert en candidatures d'emploi et alternance. 
-Tu aides les candidats à :
-- Rédiger des lettres de motivation professionnelles et personnalisées
-- Écrire des emails de relance efficaces
-- Améliorer leurs candidatures
-- Analyser leur profil et proposer des améliorations
-
-Tu es toujours professionnel, motivant et constructif. 
-Tes réponses sont structurées avec des emojis pertinents et des conseils concrets.`
+const AI_FUNCTION_URL = import.meta.env.VITE_AI_FUNCTION_URL || ''
 
 /**
  * Génère une réponse IA pour l'assistant de candidatures
@@ -25,29 +10,38 @@ Tes réponses sont structurées avec des emojis pertinents et des conseils concr
  */
 export async function generateAIResponse(userMessage, conversationHistory = []) {
   try {
-    // Si pas de clé API, utiliser les réponses de démonstration
-    if (!import.meta.env.VITE_OPENAI_API_KEY) {
+    // Si pas d'endpoint backend, utiliser les réponses de démonstration
+    if (!AI_FUNCTION_URL) {
       return getDemoResponse(userMessage)
     }
 
-    // Préparer les messages pour l'API
-    const messages = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...conversationHistory,
-      { role: 'user', content: userMessage }
-    ]
+    const currentUser = auth.currentUser
+    if (!currentUser) {
+      return getDemoResponse(userMessage)
+    }
 
-    // Appel à l'API OpenAI
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo', // Modèle rapide et accessible à tous
-      messages: messages,
-      temperature: 0.7,
-      max_tokens: 1500
+    const idToken = await currentUser.getIdToken()
+
+    const response = await fetch(AI_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`
+      },
+      body: JSON.stringify({
+        userMessage,
+        conversationHistory
+      })
     })
 
-    return completion.choices[0].message.content
+    if (!response.ok) {
+      throw new Error(`AI backend error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return data.response || getDemoResponse(userMessage)
   } catch (error) {
-    console.error('Erreur OpenAI:', error)
+    console.error('Erreur IA backend:', error)
     
     // En cas d'erreur, utiliser les réponses de démo
     return getDemoResponse(userMessage)

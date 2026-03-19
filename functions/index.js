@@ -1,11 +1,167 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { Resend } = require('resend');
+const OpenAI = require('openai');
 
 admin.initializeApp();
 
 // Initialiser Resend avec votre clé API
 const resend = new Resend(functions.config().resend.apikey);
+
+// Prompt système côté serveur (non exposé au navigateur)
+const AI_SYSTEM_PROMPT = `Tu es un assistant IA de BeCandidature expert en candidatures d'emploi et alternance.
+Tu aides les candidats à :
+- Rédiger des lettres de motivation professionnelles et personnalisées
+- Écrire des emails de relance efficaces
+- Améliorer leurs candidatures
+- Analyser leur profil et proposer des améliorations
+
+Tu es toujours professionnel, motivant et constructif.
+Tes réponses sont structurées avec des conseils concrets et actionnables.`;
+
+const getOpenAIApiKey = () => {
+  return functions.config().openai?.apikey || process.env.OPENAI_API_KEY;
+};
+
+const buildCorsHeaders = () => ({
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+});
+
+exports.adminSetUserStatus = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Authentification requise.');
+  }
+
+  const adminUid = context.auth.uid;
+  const adminDoc = await admin.firestore().collection('users').doc(adminUid).get();
+  if (!adminDoc.exists || adminDoc.data().role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Accès administrateur requis.');
+  }
+
+  const targetUserId = typeof data?.userId === 'string' ? data.userId.trim() : '';
+  const requestedStatus = typeof data?.status === 'string' ? data.status.trim() : '';
+  const reason = typeof data?.reason === 'string' ? data.reason.trim() : '';
+  const validStatuses = new Set(['active', 'pending', 'suspended', 'rejected']);
+
+  if (!targetUserId) {
+    throw new functions.https.HttpsError('invalid-argument', 'userId est requis.');
+  }
+  if (!validStatuses.has(requestedStatus)) {
+    throw new functions.https.HttpsError('invalid-argument', 'status invalide.');
+  }
+
+  const userRef = admin.firestore().collection('users').doc(targetUserId);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'Utilisateur introuvable.');
+  }
+
+  const currentUserData = userSnap.data();
+  const updates = {
+    status: requestedStatus,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  };
+
+  if (requestedStatus === 'active' && currentUserData.status === 'pending') {
+    updates.approvedAt = admin.firestore.FieldValue.serverTimestamp();
+    updates.approvedBy = adminUid;
+  }
+
+  if (requestedStatus === 'suspended') {
+    updates.suspendedReason = reason || 'Non spécifiée';
+    updates.suspendedAt = admin.firestore.FieldValue.serverTimestamp();
+  } else {
+    updates.suspendedReason = admin.firestore.FieldValue.delete();
+    updates.suspendedAt = admin.firestore.FieldValue.delete();
+  }
+
+  await userRef.update(updates);
+
+  return {
+    ok: true,
+    userId: targetUserId,
+    previousStatus: currentUserData.status || null,
+    status: requestedStatus
+  };
+});
+
+exports.generateAIResponse = functions.https.onRequest(async (req, res) => {
+  const corsHeaders = buildCorsHeaders();
+  Object.entries(corsHeaders).forEach(([key, value]) => {
+    res.set(key, value);
+  });
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  try {
+    const authHeader = req.headers.authorization || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const idToken = authHeader.substring('Bearer '.length);
+    await admin.auth().verifyIdToken(idToken);
+
+    const { userMessage, conversationHistory = [] } = req.body || {};
+    if (!userMessage || typeof userMessage !== 'string') {
+      res.status(400).json({ error: 'userMessage is required' });
+      return;
+    }
+
+    const sanitizedHistory = Array.isArray(conversationHistory)
+      ? conversationHistory
+          .filter(
+            (msg) =>
+              msg &&
+              typeof msg.content === 'string' &&
+              ['user', 'assistant', 'system'].includes(msg.role)
+          )
+          .slice(-12)
+          .map((msg) => ({
+            role: msg.role,
+            content: msg.content.slice(0, 4000)
+          }))
+      : [];
+
+    const apiKey = getOpenAIApiKey();
+    if (!apiKey) {
+      console.error('OPENAI_API_KEY / functions.config().openai.apikey manquant');
+      res.status(500).json({ error: 'AI backend not configured' });
+      return;
+    }
+
+    const openai = new OpenAI({ apiKey });
+    const model = functions.config().openai?.model || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+    const completion = await openai.chat.completions.create({
+      model,
+      messages: [
+        { role: 'system', content: AI_SYSTEM_PROMPT },
+        ...sanitizedHistory,
+        { role: 'user', content: userMessage.slice(0, 4000) }
+      ],
+      temperature: 0.7,
+      max_tokens: 1200
+    });
+
+    const responseText = completion.choices?.[0]?.message?.content || '';
+    res.status(200).json({ response: responseText });
+  } catch (error) {
+    console.error('Erreur génération IA:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Email après inscription (statut = pending)
 exports.sendWelcomeEmail = functions.firestore

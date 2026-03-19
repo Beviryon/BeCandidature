@@ -1,13 +1,30 @@
 import { useState, useEffect } from 'react'
-import { collection, getDocs, doc, updateDoc, serverTimestamp, query, orderBy } from 'firebase/firestore'
+import { collection, getDocs, query, orderBy } from 'firebase/firestore'
 import { db } from '../firebaseConfig'
 import { Users, CheckCircle, XCircle, Pause, Play, Clock, Shield } from 'lucide-react'
-import { sendApprovalEmail } from '../services/emailService'
+import { adminSetUserStatus } from '../services/adminService'
+import { useToast } from '../contexts/ToastContext'
+import ConfirmDialog from './ConfirmDialog'
 
 function AdminDashboard() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all') // all, pending, active, suspended
+  const [actionLoading, setActionLoading] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirmer',
+    type: 'danger',
+    action: null
+  })
+  const [suspendDialog, setSuspendDialog] = useState({
+    isOpen: false,
+    userId: null,
+    reason: ''
+  })
+  const { success, error: showError } = useToast()
 
   useEffect(() => {
     loadUsers()
@@ -29,66 +46,70 @@ function AdminDashboard() {
     }
   }
 
-  const updateUserStatus = async (userId, newStatus, reason = null) => {
+  const updateUserStatus = async (userId, newStatus, reason = '') => {
     try {
-      const updates = {
-        status: newStatus,
-        updatedAt: serverTimestamp()
-      }
-
-      if (newStatus === 'active' && users.find(u => u.id === userId).status === 'pending') {
-        updates.approvedAt = serverTimestamp()
-      }
-
-      if (newStatus === 'suspended' && reason) {
-        updates.suspendedReason = reason
-        updates.suspendedAt = serverTimestamp()
-      }
-
-      await updateDoc(doc(db, 'users', userId), updates)
-      
-      // Recharger la liste
+      setActionLoading(true)
+      await adminSetUserStatus(userId, newStatus, reason)
       await loadUsers()
-      
-      alert(`✅ Statut mis à jour : ${newStatus}`)
+      success(`Statut mis à jour : ${newStatus}`)
     } catch (error) {
       console.error('Erreur mise à jour:', error)
-      alert('❌ Erreur lors de la mise à jour')
+      showError(error?.message || 'Erreur lors de la mise à jour du statut')
+    } finally {
+      setActionLoading(false)
+      setConfirmDialog(prev => ({ ...prev, isOpen: false, action: null }))
     }
   }
 
-  const approveUser = async (userId) => {
-    if (window.confirm('Approuver cet utilisateur ?')) {
-      await updateUserStatus(userId, 'active')
-      
-      // Envoyer l'email d'approbation
-      const user = users.find(u => u.id === userId)
-      if (user) {
-        await sendApprovalEmail({
-          name: user.email.split('@')[0],
-          email: user.email
-        })
-      }
-    }
+  const openConfirm = ({ title, message, confirmText, type = 'danger', action }) => {
+    setConfirmDialog({
+      isOpen: true,
+      title,
+      message,
+      confirmText,
+      type,
+      action
+    })
+  }
+
+  const approveUser = (userId) => {
+    openConfirm({
+      title: 'Approuver cet utilisateur',
+      message: 'Cet utilisateur pourra accéder à l’application.',
+      confirmText: 'Approuver',
+      type: 'info',
+      action: () => updateUserStatus(userId, 'active')
+    })
   }
 
   const rejectUser = (userId) => {
-    if (window.confirm('Rejeter cet utilisateur ? (Il ne pourra plus se connecter)')) {
-      updateUserStatus(userId, 'rejected')
-    }
+    openConfirm({
+      title: 'Rejeter cet utilisateur',
+      message: 'Il ne pourra plus se connecter tant que son statut reste rejeté.',
+      confirmText: 'Rejeter',
+      type: 'danger',
+      action: () => updateUserStatus(userId, 'rejected')
+    })
   }
 
   const suspendUser = (userId) => {
-    const reason = prompt('Raison de la suspension (optionnel):')
-    if (reason !== null) {
-      updateUserStatus(userId, 'suspended', reason || 'Non spécifiée')
-    }
+    setSuspendDialog({ isOpen: true, userId, reason: '' })
   }
 
   const reactivateUser = (userId) => {
-    if (window.confirm('Réactiver cet utilisateur ?')) {
-      updateUserStatus(userId, 'active')
-    }
+    openConfirm({
+      title: 'Réactiver cet utilisateur',
+      message: 'Son accès à l’application sera rétabli.',
+      confirmText: 'Réactiver',
+      type: 'info',
+      action: () => updateUserStatus(userId, 'active')
+    })
+  }
+
+  const submitSuspend = async () => {
+    if (!suspendDialog.userId) return
+    await updateUserStatus(suspendDialog.userId, 'suspended', suspendDialog.reason || 'Non spécifiée')
+    setSuspendDialog({ isOpen: false, userId: null, reason: '' })
   }
 
   const getStatusBadge = (status) => {
@@ -266,6 +287,7 @@ function AdminDashboard() {
                       <>
                         <button
                           onClick={() => approveUser(user.id)}
+                          disabled={actionLoading}
                           className="flex items-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-xl transition-all shadow-md"
                         >
                           <CheckCircle className="w-4 h-4" />
@@ -273,6 +295,7 @@ function AdminDashboard() {
                         </button>
                         <button
                           onClick={() => rejectUser(user.id)}
+                          disabled={actionLoading}
                           className="flex items-center space-x-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl transition-all shadow-md"
                         >
                           <XCircle className="w-4 h-4" />
@@ -283,6 +306,7 @@ function AdminDashboard() {
                     {user.status === 'active' && (
                       <button
                         onClick={() => suspendUser(user.id)}
+                        disabled={actionLoading}
                         className="flex items-center space-x-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 rounded-xl transition-all border border-red-500/30"
                       >
                         <Pause className="w-4 h-4" />
@@ -292,6 +316,7 @@ function AdminDashboard() {
                     {user.status === 'suspended' && (
                       <button
                         onClick={() => reactivateUser(user.id)}
+                        disabled={actionLoading}
                         className="flex items-center space-x-2 px-4 py-2 bg-green-500/10 hover:bg-green-500/20 text-green-600 dark:text-green-400 rounded-xl transition-all border border-green-500/30"
                       >
                         <Play className="w-4 h-4" />
@@ -305,6 +330,51 @@ function AdminDashboard() {
           })
         )}
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog(prev => ({ ...prev, isOpen: false, action: null }))}
+        onConfirm={() => confirmDialog.action?.()}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText={confirmDialog.confirmText}
+        type={confirmDialog.type}
+      />
+
+      {suspendDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4 border border-red-500/30 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+              Suspendre cet utilisateur
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+              Indiquez une raison (optionnel) qui sera enregistrée dans son profil.
+            </p>
+            <textarea
+              value={suspendDialog.reason}
+              onChange={(e) => setSuspendDialog(prev => ({ ...prev, reason: e.target.value }))}
+              rows={4}
+              className="w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 mb-4 outline-none focus:ring-2 focus:ring-red-500/40"
+              placeholder="Raison de la suspension..."
+            />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={submitSuspend}
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium transition-all disabled:opacity-50"
+              >
+                Confirmer la suspension
+              </button>
+              <button
+                onClick={() => setSuspendDialog({ isOpen: false, userId: null, reason: '' })}
+                className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-xl font-medium transition-all"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

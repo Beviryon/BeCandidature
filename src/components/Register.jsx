@@ -97,10 +97,11 @@ function Register() {
     }
 
     setLoading(true)
+    const normalizedEmail = email.trim().toLowerCase()
 
     try {
       // Créer le compte Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password)
       const user = userCredential.user
       
       // Créer le document utilisateur dans Firestore avec statut "pending"

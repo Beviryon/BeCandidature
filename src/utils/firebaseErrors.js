@@ -6,7 +6,7 @@
 export const getFirebaseErrorMessage = (errorCode) => {
   const errorMessages = {
     // Erreurs d'authentification
-    'auth/invalid-credential': '❌ Email ou mot de passe incorrect. Veuillez réessayer.',
+    'auth/invalid-credential': '❌ Identifiants invalides (email ou mot de passe). Vérifiez aussi que ce compte existe bien dans le projet Firebase en cours.',
     'auth/user-not-found': '❌ Aucun compte trouvé avec cet email.',
     'auth/wrong-password': '❌ Mot de passe incorrect.',
     'auth/invalid-email': '❌ L\'adresse email n\'est pas valide.',
