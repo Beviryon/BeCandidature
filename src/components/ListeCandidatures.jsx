@@ -1,10 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { 
   Building2, Briefcase, Calendar, Clock, User, ExternalLink, 
-  Edit, Trash2, Plus, TrendingUp, AlertCircle, CheckCircle, XCircle,
+  Edit, Trash2, Plus, AlertCircle, CheckCircle, XCircle,
   Search, Filter, FileDown, FileSpreadsheet, Upload, Mail, FileCheck,
-  CheckSquare, Square, Layers
+  CheckSquare, Square, Layers, ChevronDown, ChevronUp
 } from 'lucide-react'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -18,10 +18,17 @@ function ListeCandidatures() {
   const { candidatures, loading, error, deleteCandidature } = useCandidatures()
   const [filterStatut, setFilterStatut] = useState('Tous')
   const [searchQuery, setSearchQuery] = useState('')
+  const [savedView, setSavedView] = useState('all')
+  const [sortMode, setSortMode] = useState('priorite')
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, id: null })
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState({ isOpen: false, count: 0 })
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false)
+  const [isExportOpen, setIsExportOpen] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+
+  const ITEMS_PER_PAGE = 10
 
   const handleDeleteClick = (id) => {
     setDeleteConfirm({ isOpen: true, id })
@@ -53,11 +60,18 @@ function ListeCandidatures() {
   }
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredCandidatures.length) {
-      setSelectedIds(new Set())
-    } else {
-      setSelectedIds(new Set(filteredCandidatures.map(c => c.id)))
-    }
+    const allVisibleSelected = paginatedCandidatures.length > 0 &&
+      paginatedCandidatures.every((c) => selectedIds.has(c.id))
+
+    setSelectedIds((prev) => {
+      const newSet = new Set(prev)
+      if (allVisibleSelected) {
+        paginatedCandidatures.forEach((c) => newSet.delete(c.id))
+      } else {
+        paginatedCandidatures.forEach((c) => newSet.add(c.id))
+      }
+      return newSet
+    })
   }
 
   const handleBulkDeleteClick = () => {
@@ -131,6 +145,20 @@ function ListeCandidatures() {
     return diffJours >= 7
   }
 
+  const getPriorityScore = (candidature) => {
+    const now = new Date()
+    const dateCandidat = new Date(candidature.date_candidature)
+    const diffJours = Math.max(0, Math.floor((now - dateCandidat) / (1000 * 60 * 60 * 24)))
+
+    if (candidature.statut === 'En attente') {
+      return 100 + diffJours // Plus ancien = plus prioritaire
+    }
+    if (candidature.statut === 'Entretien') {
+      return 80 + diffJours
+    }
+    return 20 + diffJours // Refus en dernier
+  }
+
   // Export to PDF
   const exportToPDF = () => {
     const doc = new jsPDF()
@@ -197,9 +225,22 @@ function ListeCandidatures() {
     doc.save(`candidatures_${new Date().toISOString().split('T')[0]}.pdf`)
   }
 
-  // Filtrage des candidatures (memoized pour performance) - DOIT être avant les returns conditionnels
+  // Filtrage + vue enregistree + tri intelligent
   const filteredCandidatures = useMemo(() => {
-    return candidatures.filter(candidature => {
+    const viewFiltered = candidatures.filter((candidature) => {
+      if (savedView === 'to-relancer') {
+        return candidature.statut === 'En attente' && shouldRelancer(candidature.date_candidature)
+      }
+      if (savedView === 'entretiens') {
+        return candidature.statut === 'Entretien'
+      }
+      if (savedView === 'refus') {
+        return candidature.statut === 'Refus'
+      }
+      return true
+    })
+
+    const filtered = viewFiltered.filter(candidature => {
       // Filtre par statut
       const matchStatut = filterStatut === 'Tous' || candidature.statut === filterStatut
       
@@ -210,7 +251,18 @@ function ListeCandidatures() {
       
       return matchStatut && matchSearch
     })
-  }, [candidatures, filterStatut, searchQuery])
+
+    const sorted = [...filtered]
+    if (sortMode === 'priorite') {
+      sorted.sort((a, b) => getPriorityScore(b) - getPriorityScore(a))
+    } else if (sortMode === 'recent') {
+      sorted.sort((a, b) => new Date(b.date_candidature) - new Date(a.date_candidature))
+    } else if (sortMode === 'entreprise') {
+      sorted.sort((a, b) => a.entreprise.localeCompare(b.entreprise, 'fr'))
+    }
+
+    return sorted
+  }, [candidatures, filterStatut, searchQuery, savedView, sortMode])
 
   // Statistiques (memoized pour performance) - DOIT être avant les returns conditionnels
   const stats = useMemo(() => ({
@@ -219,6 +271,23 @@ function ListeCandidatures() {
     attente: candidatures.filter(c => c.statut === 'En attente').length,
     refus: candidatures.filter(c => c.statut === 'Refus').length
   }), [candidatures])
+
+  const totalPages = Math.max(1, Math.ceil(filteredCandidatures.length / ITEMS_PER_PAGE))
+
+  const paginatedCandidatures = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+    return filteredCandidatures.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+  }, [filteredCandidatures, currentPage])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, filterStatut, savedView, sortMode])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   // Export to Excel
   const exportToExcel = () => {
@@ -277,7 +346,7 @@ function ListeCandidatures() {
           </h2>
           <p className="text-gray-600 dark:text-gray-400">Gérez et suivez toutes vos candidatures</p>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
           {[1, 2, 3, 4].map(i => (
             <CandidatureSkeleton key={i} />
           ))}
@@ -300,7 +369,7 @@ function ListeCandidatures() {
   const filtresStatut = ['Tous', 'En attente', 'Entretien', 'Refus']
 
   return (
-    <div className="space-y-8 animate-slide-up">
+    <div className="space-y-5 md:space-y-8 animate-slide-up">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -309,12 +378,12 @@ function ListeCandidatures() {
           </h2>
           <p className="text-gray-600 dark:text-gray-400">Gérez et suivez toutes vos candidatures</p>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="w-full sm:w-auto flex flex-wrap gap-2 md:gap-3">
           {isSelectionMode ? (
             <>
               <button
                 onClick={exitSelectionMode}
-                className="group flex items-center space-x-2 px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg"
+                className="group flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2.5 md:px-6 md:py-3 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg"
               >
                 <XCircle className="w-5 h-5" />
                 <span>Annuler</span>
@@ -322,7 +391,7 @@ function ListeCandidatures() {
               <button
                 onClick={handleBulkDeleteClick}
                 disabled={selectedIds.size === 0}
-                className="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-red-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="group flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2.5 md:px-6 md:py-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-red-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
               >
                 <Trash2 className="w-5 h-5" />
                 <span>Supprimer ({selectedIds.size})</span>
@@ -332,17 +401,17 @@ function ListeCandidatures() {
             <>
               <Link
                 to="/import-excel"
-                className="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-green-500/50"
+                className="group flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2.5 md:px-6 md:py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-green-500/50"
               >
                 <Upload className="w-5 h-5" />
-                <span>Importer Excel</span>
+                <span>Importer des candidatures</span>
               </Link>
               <Link
                 to="/ajouter"
-                className="group flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-purple-500/50"
+                className="group flex-1 sm:flex-none flex items-center justify-center space-x-2 px-4 py-2.5 md:px-6 md:py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-purple-500/50"
               >
                 <Plus className="w-5 h-5" />
-                <span>Nouvelle Candidature</span>
+                <span>Ajouter manuellement</span>
               </Link>
             </>
           )}
@@ -358,13 +427,15 @@ function ListeCandidatures() {
                 onClick={toggleSelectAll}
                 className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all border border-white/20"
               >
-                {selectedIds.size === filteredCandidatures.length ? (
+                {paginatedCandidatures.length > 0 && paginatedCandidatures.every((c) => selectedIds.has(c.id)) ? (
                   <CheckSquare className="w-5 h-5" />
                 ) : (
                   <Square className="w-5 h-5" />
                 )}
                 <span className="font-medium">
-                  {selectedIds.size === filteredCandidatures.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+                  {paginatedCandidatures.length > 0 && paginatedCandidatures.every((c) => selectedIds.has(c.id))
+                    ? 'Tout deselectionner (page)'
+                    : 'Tout selectionner (page)'}
                 </span>
               </button>
               <div className="text-white font-medium">
@@ -379,45 +450,30 @@ function ListeCandidatures() {
         </div>
       )}
 
-      {/* Statistics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-purple-500/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total</p>
-              <p className="text-3xl font-bold text-purple-700 dark:text-white">{stats.total}</p>
-            </div>
-            <TrendingUp className="w-10 h-10 text-purple-400" />
-          </div>
+      {/* Resume compact mobile */}
+      <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-4 border border-purple-500/20">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-gray-800 dark:text-white">Pilotage rapide</h3>
+          <span className="text-xs px-2 py-1 rounded-full bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30">
+            {filteredCandidatures.length}/{stats.total}
+          </span>
         </div>
-
-        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-green-500/20 hover:border-green-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-green-500/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Entretiens</p>
-              <p className="text-3xl font-bold text-green-600 dark:text-green-400">{stats.entretien}</p>
-            </div>
-            <CheckCircle className="w-10 h-10 text-green-400" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="rounded-xl p-2.5 bg-white/70 dark:bg-white/5 border border-white/10">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Total</p>
+            <p className="text-lg font-bold text-gray-800 dark:text-white">{stats.total}</p>
           </div>
-        </div>
-
-        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-orange-500/20 hover:border-orange-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-orange-500/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">En attente</p>
-              <p className="text-3xl font-bold text-orange-600 dark:text-orange-400">{stats.attente}</p>
-            </div>
-            <Clock className="w-10 h-10 text-orange-400" />
+          <div className="rounded-xl p-2.5 bg-green-500/10 border border-green-500/30">
+            <p className="text-xs text-green-700 dark:text-green-300">Entretiens</p>
+            <p className="text-lg font-bold text-green-700 dark:text-green-300">{stats.entretien}</p>
           </div>
-        </div>
-
-        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-red-500/20 hover:border-red-500/40 transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-red-500/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Refus</p>
-              <p className="text-3xl font-bold text-red-600 dark:text-red-400">{stats.refus}</p>
-            </div>
-            <XCircle className="w-10 h-10 text-red-400" />
+          <div className="rounded-xl p-2.5 bg-orange-500/10 border border-orange-500/30">
+            <p className="text-xs text-orange-700 dark:text-orange-300">En attente</p>
+            <p className="text-lg font-bold text-orange-700 dark:text-orange-300">{stats.attente}</p>
+          </div>
+          <div className="rounded-xl p-2.5 bg-red-500/10 border border-red-500/30">
+            <p className="text-xs text-red-700 dark:text-red-300">Refus</p>
+            <p className="text-lg font-bold text-red-700 dark:text-red-300">{stats.refus}</p>
           </div>
         </div>
       </div>
@@ -425,98 +481,175 @@ function ListeCandidatures() {
       {/* Filters */}
       {candidatures.length > 0 && (
         <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-purple-500/20 space-y-4">
-          <div className="flex items-center space-x-2 text-gray-300 mb-4">
-            <Filter className="w-5 h-5 text-purple-400" />
-            <h3 className="font-semibold">Filtres</h3>
-          </div>
-
-          {/* Search bar */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
+          <button
+            type="button"
+            onClick={() => setIsFiltersOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between"
+          >
+            <div className="flex items-center space-x-2 text-gray-300">
+              <Filter className="w-5 h-5 text-purple-400" />
+              <h3 className="font-semibold">Filtres</h3>
             </div>
-            <input
-              type="text"
-              placeholder="Rechercher par entreprise ou poste..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white transition-colors"
-              >
-                <XCircle className="h-5 w-5" />
-              </button>
-            )}
-          </div>
-
-          {/* Status filters */}
-          <div className="flex flex-wrap gap-2">
-            {filtresStatut.map((statut) => {
-              const isActive = filterStatut === statut
-              const count = statut === 'Tous' 
-                ? stats.total 
-                : candidatures.filter(c => c.statut === statut).length
-
-              return (
-                <button
-                  key={statut}
-                  onClick={() => setFilterStatut(statut)}
-                  className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 ${
-                    isActive
-                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/50'
-                      : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
-                  }`}
-                >
-                  <span>{statut}</span>
-                  <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
-                    isActive ? 'bg-white/20' : 'bg-white/10'
-                  }`}>
-                    {count}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Results count */}
-          {(searchQuery || filterStatut !== 'Tous') && (
-            <div className="pt-2 border-t border-white/10">
-              <p className="text-sm text-gray-400">
-                {filteredCandidatures.length} résultat(s) sur {candidatures.length} candidature(s)
-              </p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">{filteredCandidatures.length} resultats</span>
+              {isFiltersOpen ? (
+                <ChevronUp className="w-4 h-4 text-gray-400 md:hidden" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-gray-400 md:hidden" />
+              )}
             </div>
-          )}
+          </button>
+
+          <div className={`${isFiltersOpen ? 'block' : 'hidden'} md:block space-y-4`}>
+              {/* Search bar */}
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Rechercher par entreprise ou poste..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white transition-colors"
+                  >
+                    <XCircle className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Status filters */}
+              <div className="flex flex-wrap gap-2">
+                {filtresStatut.map((statut) => {
+                  const isActive = filterStatut === statut
+                  const count = statut === 'Tous'
+                    ? stats.total
+                    : candidatures.filter(c => c.statut === statut).length
+
+                  return (
+                    <button
+                      key={statut}
+                      onClick={() => setFilterStatut(statut)}
+                      className={`px-3 py-2 rounded-xl text-sm font-medium transition-all duration-300 ${
+                        isActive
+                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/30'
+                          : 'bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white border border-white/10'
+                      }`}
+                    >
+                      <span>{statut}</span>
+                      <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                        isActive ? 'bg-white/20' : 'bg-white/10'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Vues enregistrees */}
+              <div className="pt-2 border-t border-white/10">
+                <p className="text-sm text-gray-400 mb-2">Vues enregistrees</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: 'all', label: 'Toutes' },
+                    { id: 'to-relancer', label: 'A relancer' },
+                    { id: 'entretiens', label: 'Entretiens' },
+                    { id: 'refus', label: 'Refus a analyser' }
+                  ].map((view) => (
+                    <button
+                      key={view.id}
+                      onClick={() => setSavedView(view.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        savedView === view.id
+                          ? 'bg-purple-500/30 text-purple-200 border border-purple-500/40'
+                          : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+                      }`}
+                    >
+                      {view.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tri intelligent */}
+              <div className="pt-2 border-t border-white/10">
+                <p className="text-sm text-gray-400 mb-2">Tri</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: 'priorite', label: 'Priorite du jour' },
+                    { id: 'recent', label: 'Plus recentes' },
+                    { id: 'entreprise', label: 'Entreprise A-Z' }
+                  ].map((sortOption) => (
+                    <button
+                      key={sortOption.id}
+                      onClick={() => setSortMode(sortOption.id)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        sortMode === sortOption.id
+                          ? 'bg-blue-500/30 text-blue-200 border border-blue-500/40'
+                          : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
+                      }`}
+                    >
+                      {sortOption.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Results count */}
+              {(searchQuery || filterStatut !== 'Tous') && (
+                <div className="pt-2 border-t border-white/10">
+                  <p className="text-sm text-gray-400">
+                    {filteredCandidatures.length} résultat(s) sur {candidatures.length} candidature(s)
+                  </p>
+                </div>
+              )}
+          </div>
         </div>
       )}
 
       {/* Export buttons */}
       {candidatures.length > 0 && (
         <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border border-purple-500/20">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h3 className="font-semibold text-gray-300 mb-1">Exporter vos données</h3>
+          <button
+            type="button"
+            onClick={() => setIsExportOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between"
+          >
+            <div className="text-left">
+              <h3 className="font-semibold text-gray-300 mb-1">Exporter vos candidatures</h3>
               <p className="text-sm text-gray-400">
-                Téléchargez votre historique de candidatures
+                Telechargez un fichier PDF ou Excel pour partager, archiver ou analyser vos candidatures
                 {(searchQuery || filterStatut !== 'Tous') && ' (filtres appliqués)'}
               </p>
             </div>
+            {isExportOpen ? (
+              <ChevronUp className="w-4 h-4 text-gray-400 md:hidden" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-gray-400 md:hidden" />
+            )}
+          </button>
+
+          <div className={`${isExportOpen ? 'mt-4 block' : 'hidden'} md:block`}>
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={exportToPDF}
                 className="group flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-red-500/50"
               >
                 <FileDown className="w-5 h-5 group-hover:animate-bounce" />
-                <span>Export PDF</span>
+                <span>Exporter en PDF</span>
               </button>
               <button
                 onClick={exportToExcel}
                 className="group flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-green-500/50"
               >
                 <FileSpreadsheet className="w-5 h-5 group-hover:animate-bounce" />
-                <span>Export Excel</span>
+                <span>Exporter en Excel</span>
               </button>
             </div>
           </div>
@@ -576,7 +709,7 @@ function ListeCandidatures() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredCandidatures.map((candidature, index) => {
+          {paginatedCandidatures.map((candidature, index) => {
             const statusConfig = getStatusConfig(candidature.statut)
             const StatusIcon = statusConfig.icon
             const needsRelance = shouldRelancer(candidature.date_candidature) && candidature.statut === 'En attente'
@@ -586,7 +719,7 @@ function ListeCandidatures() {
             return (
               <div
                 key={candidature.id}
-                className={`bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-6 border transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl animate-fade-in ${
+                className={`bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-4 md:p-6 border transition-all duration-300 transform hover:scale-[1.01] hover:shadow-xl animate-fade-in ${
                   isSelectionMode 
                     ? `cursor-default ${isSelected ? 'border-blue-500/50 bg-blue-500/10' : 'border-white/10 hover:border-blue-500/30'}` 
                     : 'cursor-pointer border-white/10 hover:border-purple-500/30'
@@ -603,7 +736,7 @@ function ListeCandidatures() {
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <div className="flex items-center space-x-3 mb-2">
+                    <div className="flex items-center space-x-2 md:space-x-3 mb-2">
                       {isSelectionMode && (
                         <button
                           onClick={(e) => {
@@ -620,7 +753,7 @@ function ListeCandidatures() {
                         </button>
                       )}
                       <Building2 className="w-5 h-5 text-purple-400" />
-                      <h3 className="text-xl font-bold text-white">{candidature.entreprise}</h3>
+                      <h3 className="text-lg md:text-xl font-bold text-white">{candidature.entreprise}</h3>
                     </div>
                     <div className="flex items-center space-x-2 text-gray-400">
                       <Briefcase className="w-4 h-4" />
@@ -638,7 +771,7 @@ function ListeCandidatures() {
                 </div>
 
                 {/* Details */}
-                <div className="space-y-3 mb-4">
+                <div className="space-y-2.5 mb-4">
                   <div className="flex items-center space-x-3 text-sm text-gray-400">
                     <Calendar className="w-4 h-4 text-purple-400" />
                     <span>Candidature : {new Date(candidature.date_candidature).toLocaleDateString('fr-FR')}</span>
@@ -708,21 +841,21 @@ function ListeCandidatures() {
                   >
                     <Link
                       to={`/candidatures/${candidature.id}`}
-                      className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl transition-all duration-300 border border-white/10 hover:border-purple-500/30"
+                    className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl transition-all duration-300 border border-white/10 hover:border-purple-500/30"
                     >
                       <Briefcase className="w-4 h-4" />
                       <span className="text-sm font-medium">Détails</span>
                     </Link>
                     <Link
                       to={`/modifier/${candidature.id}`}
-                      className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl transition-all duration-300 border border-white/10 hover:border-purple-500/30"
+                    className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl transition-all duration-300 border border-white/10 hover:border-purple-500/30"
                     >
                       <Edit className="w-4 h-4" />
                       <span className="text-sm font-medium">Modifier</span>
                     </Link>
                     <button
                       onClick={() => handleDeleteClick(candidature.id)}
-                      className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-xl transition-all duration-300 border border-red-500/30 hover:border-red-500/50"
+                      className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-xl transition-all duration-300 border border-red-500/30 hover:border-red-500/50"
                     >
                       <Trash2 className="w-4 h-4" />
                       <span className="text-sm font-medium">Supprimer</span>
@@ -732,6 +865,52 @@ function ListeCandidatures() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {filteredCandidatures.length > ITEMS_PER_PAGE && (
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl shadow-lg rounded-2xl p-4 border border-purple-500/20">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Page {currentPage} sur {totalPages} - {filteredCandidatures.length} candidature(s)
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Precedent
+              </button>
+
+              <div className="hidden sm:flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .slice(Math.max(0, currentPage - 3), Math.max(0, currentPage - 3) + 5)
+                  .map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-8 h-8 rounded-lg text-sm border transition-colors ${
+                        currentPage === page
+                          ? 'bg-purple-500/30 text-purple-200 border-purple-500/40'
+                          : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Suivant
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

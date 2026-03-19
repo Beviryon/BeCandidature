@@ -3,7 +3,7 @@ import {
   Download, Eye, Save, FileText, Zap, Sparkles, QrCode, TrendingUp, 
   ExternalLink, Palette, Layout, Briefcase, GraduationCap, Award,
   Mail, Phone, MapPin, Linkedin, Globe, Plus, X, CheckCircle,
-  Star, ArrowRight, Image as ImageIcon
+  Star, ArrowRight, Image as ImageIcon, ChevronDown
 } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -38,6 +38,7 @@ function CVGenerator() {
   const [downloadCount, setDownloadCount] = useState(0)
   const [activeSection, setActiveSection] = useState('personal')
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+  const [isTemplateAccordionOpen, setIsTemplateAccordionOpen] = useState(false)
   const isAtsTemplate = selectedTemplate.startsWith('ats-')
 
   useEffect(() => {
@@ -49,7 +50,39 @@ function CVGenerator() {
     if (count) {
       setDownloadCount(parseInt(count))
     }
+    const savedAccordionState = localStorage.getItem('cv_template_accordion_open')
+    if (savedAccordionState !== null) {
+      setIsTemplateAccordionOpen(savedAccordionState === 'true')
+    }
+    const savedTemplate = localStorage.getItem('cv_selected_template')
+    if (savedTemplate) {
+      setSelectedTemplate(savedTemplate)
+    }
+    const savedSection = localStorage.getItem('cv_active_section')
+    if (savedSection) {
+      setActiveSection(savedSection)
+    }
+    const savedPreview = localStorage.getItem('cv_show_preview')
+    if (savedPreview !== null) {
+      setShowPreview(savedPreview === 'true')
+    }
   }, [])
+
+  useEffect(() => {
+    localStorage.setItem('cv_template_accordion_open', String(isTemplateAccordionOpen))
+  }, [isTemplateAccordionOpen])
+
+  useEffect(() => {
+    localStorage.setItem('cv_selected_template', selectedTemplate)
+  }, [selectedTemplate])
+
+  useEffect(() => {
+    localStorage.setItem('cv_active_section', activeSection)
+  }, [activeSection])
+
+  useEffect(() => {
+    localStorage.setItem('cv_show_preview', String(showPreview))
+  }, [showPreview])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -566,6 +599,20 @@ function CVGenerator() {
     }
   ]
 
+  const selectedTemplateMeta = templates.find((template) => template.id === selectedTemplate) || templates[0]
+  const sectionTabs = [
+    { id: 'personal', label: 'Personnel', icon: FileText },
+    { id: 'experience', label: 'Expériences', icon: Briefcase },
+    { id: 'education', label: 'Formation', icon: GraduationCap },
+    { id: 'skills', label: 'Compétences', icon: Star },
+    { id: 'ats', label: 'ATS', icon: TrendingUp }
+  ]
+
+  const handleTemplateSelect = (templateId) => {
+    setSelectedTemplate(templateId)
+    setIsTemplateAccordionOpen(false)
+  }
+
   const renderCVPreview = () => {
     if (selectedTemplate === 'ats-simple' || selectedTemplate === 'ats-chrono') {
       const isChrono = selectedTemplate === 'ats-chrono'
@@ -972,97 +1019,163 @@ function CVGenerator() {
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-slide-up">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-4xl font-bold gradient-text mb-2">
-            📄 Générateur de CV Professionnel
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            Créez un CV professionnel en quelques minutes avec nos templates modernes
-          </p>
-        </div>
-        <div className="flex items-center space-x-2 bg-green-500/10 px-4 py-2 rounded-xl border border-green-500/30">
-          <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-400" />
-          <span className="text-sm font-medium text-green-700 dark:text-green-300">
-            {downloadCount} téléchargement{downloadCount !== 1 ? 's' : ''}
-          </span>
+      <div className="relative overflow-hidden bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 rounded-3xl p-6 md:p-8 text-white shadow-2xl">
+        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,white,transparent_55%)]" />
+        <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
+          <div>
+            <h2 className="text-3xl md:text-4xl font-bold mb-2">
+              Generateur de CV Professionnel
+            </h2>
+            <p className="text-white/90 max-w-2xl">
+              Construit un CV clair, moderne et compatible ATS avec un score en temps reel et des suggestions actionnables.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 border border-white/25 text-xs font-medium">
+              <TrendingUp className="w-4 h-4" />
+              {downloadCount} telechargement{downloadCount !== 1 ? 's' : ''}
+            </span>
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 border border-white/25 text-xs font-medium">
+              <CheckCircle className="w-4 h-4" />
+              {completionStats.percentage}% complete
+            </span>
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 border border-white/25 text-xs font-medium">
+              <Layout className="w-4 h-4" />
+              {selectedTemplateMeta?.name || 'Template'}
+            </span>
+            {isAtsTemplate && (
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-400/20 border border-emerald-200/40 text-xs font-semibold">
+                ATS actif
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Templates avec aperçu */}
-      <div className="bg-white/80 dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/20 shadow-lg">
-        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center space-x-2">
-          <Layout className="w-5 h-5 text-purple-400" />
-          <span>Choisissez un template</span>
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {templates.map(template => {
-            const Icon = template.icon
-            const isSelected = selectedTemplate === template.id
-            return (
-              <button
-                key={template.id}
-                onClick={() => setSelectedTemplate(template.id)}
-                className={`relative p-4 rounded-xl border-2 transition-all duration-300 text-left overflow-hidden group ${
-                  isSelected
-                    ? 'border-purple-500 bg-gradient-to-br from-purple-500/10 to-pink-500/10 shadow-lg scale-105'
-                    : 'border-white/10 hover:border-purple-500/30'
-                }`}
-              >
-                <div className={`absolute inset-0 bg-gradient-to-br ${template.gradient} opacity-0 group-hover:opacity-5 transition-opacity`}></div>
-                <div className={`w-full h-24 rounded-lg mb-3 ${template.preview} border-2 ${isSelected ? 'border-purple-500' : 'border-gray-200 dark:border-white/10'}`}></div>
-                <div className="relative">
-                  <div className={`inline-flex p-2 rounded-lg bg-gradient-to-br ${template.gradient} mb-2`}>
-                    <Icon className="w-4 h-4 text-white" />
-                  </div>
-                  <h4 className="font-bold text-gray-800 dark:text-white mb-1">{template.name}</h4>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">{template.description}</p>
-                  {template.id.startsWith('ats-') && (
-                    <span className="inline-flex mt-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-500/15 text-green-700 dark:text-green-300 border border-green-500/30">
-                      ATS
-                    </span>
-                  )}
-                  {isSelected && (
-                    <div className="mt-2 flex items-center space-x-1 text-xs text-purple-600 dark:text-purple-400">
-                      <CheckCircle className="w-3 h-3" />
-                      <span>Actif</span>
+      <div className="bg-white/90 dark:bg-black/40 backdrop-blur-xl rounded-2xl p-4 md:p-6 border border-purple-500/20 shadow-lg">
+        <button
+          type="button"
+          onClick={() => setIsTemplateAccordionOpen(prev => !prev)}
+          className="w-full flex items-center justify-between gap-3 text-left"
+        >
+          <div>
+            <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-1 flex items-center space-x-2">
+              <Layout className="w-5 h-5 text-purple-400" />
+              <span>Choisissez un template</span>
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {isTemplateAccordionOpen
+                ? 'Selectionne un style visuel. Les templates ATS sont optimises pour le parsing.'
+                : `Template actif: ${selectedTemplateMeta?.name || 'Aucun'}${isAtsTemplate ? ' (ATS)' : ''}`}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isAtsTemplate && (
+              <span className="inline-flex text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-500/15 text-green-700 dark:text-green-300 border border-green-500/30">
+                ATS
+              </span>
+            )}
+            <ChevronDown className={`w-5 h-5 text-gray-600 dark:text-gray-300 transition-transform ${isTemplateAccordionOpen ? 'rotate-180' : ''}`} />
+          </div>
+        </button>
+
+        {!isTemplateAccordionOpen && (
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => setIsTemplateAccordionOpen(true)}
+              className="text-xs px-3 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/30 transition-colors"
+            >
+              Changer le template
+            </button>
+          </div>
+        )}
+
+        {isTemplateAccordionOpen && (
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {templates.map(template => {
+              const Icon = template.icon
+              const isSelected = selectedTemplate === template.id
+              return (
+                <button
+                  key={template.id}
+                  onClick={() => handleTemplateSelect(template.id)}
+                  className={`relative p-4 rounded-xl border-2 transition-all duration-300 text-left overflow-hidden group ${
+                    isSelected
+                      ? 'border-purple-500 bg-gradient-to-br from-purple-500/10 to-pink-500/10 shadow-lg scale-105'
+                      : 'border-white/10 hover:border-purple-500/30'
+                  }`}
+                >
+                  <div className={`absolute inset-0 bg-gradient-to-br ${template.gradient} opacity-0 group-hover:opacity-5 transition-opacity`}></div>
+                  <div className={`w-full h-24 rounded-lg mb-3 ${template.preview} border-2 ${isSelected ? 'border-purple-500' : 'border-gray-200 dark:border-white/10'}`}></div>
+                  <div className="relative">
+                    <div className={`inline-flex p-2 rounded-lg bg-gradient-to-br ${template.gradient} mb-2`}>
+                      <Icon className="w-4 h-4 text-white" />
                     </div>
-                  )}
-                </div>
-              </button>
-            )
-          })}
-        </div>
+                    <h4 className="font-bold text-gray-800 dark:text-white mb-1">{template.name}</h4>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">{template.description}</p>
+                    {template.id.startsWith('ats-') && (
+                      <span className="inline-flex mt-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-500/15 text-green-700 dark:text-green-300 border border-green-500/30">
+                        ATS
+                      </span>
+                    )}
+                    {isSelected && (
+                      <div className="mt-2 flex items-center space-x-1 text-xs text-purple-600 dark:text-purple-400">
+                        <CheckCircle className="w-3 h-3" />
+                        <span>Actif</span>
+                      </div>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Formulaire */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="bg-white/80 dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/20 shadow-lg">
+          <div className="bg-white/90 dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/20 shadow-lg">
             <div className="flex items-center space-x-2 mb-4">
               <FileText className="w-5 h-5 text-purple-400" />
               <h3 className="text-lg font-bold text-gray-800 dark:text-white">Informations</h3>
             </div>
+
+            <div className="mb-4 p-3 rounded-xl bg-purple-500/10 border border-purple-500/20">
+              <div className="flex items-center justify-between text-xs text-gray-700 dark:text-gray-300 mb-1">
+                <span>Progression du CV</span>
+                <span>{completionStats.completed}/{completionStats.total}</span>
+              </div>
+              <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
+                  style={{ width: `${completionStats.percentage}%` }}
+                />
+              </div>
+            </div>
             
             {/* Navigation sections */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              {['personal', 'experience', 'education', 'skills', 'ats'].map(section => (
-                <button
-                  key={section}
-                  onClick={() => setActiveSection(section)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                    activeSection === section
-                      ? 'bg-purple-500 text-white'
-                      : 'bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-white/10'
-                  }`}
-                >
-                  {section === 'personal' && 'Personnel'}
-                  {section === 'experience' && 'Expériences'}
-                  {section === 'education' && 'Formation'}
-                  {section === 'skills' && 'Compétences'}
-                  {section === 'ats' && 'ATS'}
-                </button>
-              ))}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
+              {sectionTabs.map((section) => {
+                const SectionIcon = section.icon
+                const isActive = activeSection === section.id
+                return (
+                  <button
+                    key={section.id}
+                    onClick={() => setActiveSection(section.id)}
+                    className={`px-3 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-2 ${
+                      isActive
+                        ? 'bg-purple-500 text-white shadow-md'
+                        : 'bg-white/70 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-white dark:hover:bg-white/10 border border-gray-200 dark:border-white/10'
+                    }`}
+                  >
+                    <SectionIcon className="w-3.5 h-3.5" />
+                    <span>{section.label}</span>
+                  </button>
+                )
+              })}
             </div>
 
             <div className="space-y-4 max-h-[600px] overflow-y-auto">
@@ -1087,7 +1200,7 @@ function CVGenerator() {
                   {formData.experiences.map((exp, idx) => (
                     <div key={idx} className="p-4 rounded-xl bg-white/5 border border-white/10">
                       <div className="flex justify-between items-center mb-3">
-                        <h4 className="font-semibold text-white">Expérience {idx + 1}</h4>
+                        <h4 className="font-semibold text-gray-800 dark:text-white">Experience {idx + 1}</h4>
                         {formData.experiences.length > 1 && (
                           <button onClick={() => removeItem('experiences', idx)} className="text-red-400 hover:text-red-300">
                             <X className="w-4 h-4" />
@@ -1116,7 +1229,7 @@ function CVGenerator() {
                   {formData.formations.map((form, idx) => (
                     <div key={idx} className="p-4 rounded-xl bg-white/5 border border-white/10">
                       <div className="flex justify-between items-center mb-3">
-                        <h4 className="font-semibold text-white">Formation {idx + 1}</h4>
+                        <h4 className="font-semibold text-gray-800 dark:text-white">Formation {idx + 1}</h4>
                         {formData.formations.length > 1 && (
                           <button onClick={() => removeItem('formations', idx)} className="text-red-400 hover:text-red-300">
                             <X className="w-4 h-4" />

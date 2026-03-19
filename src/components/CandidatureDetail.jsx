@@ -72,18 +72,82 @@ function CandidatureDetail() {
     load()
   }, [getCandidature, id, navigate, showError])
 
-  const timeline = useMemo(() => {
+  const timelineEvents = useMemo(() => {
     if (!candidature) return []
 
-    const base = [{
-      status: candidature.statut,
-      note: 'Statut actuel',
-      date: candidature.updated_at || candidature.date_candidature
-    }]
+    const events = []
 
-    const history = candidature.history || []
-    return [...history].reverse().concat(base)
+    events.push({
+      id: `applied-${candidature.id}`,
+      type: 'application',
+      title: 'Candidature envoyée',
+      subtitle: candidature.poste,
+      date: candidature.date_candidature
+    })
+
+    ;(candidature.history || []).forEach((entry, index) => {
+      events.push({
+        id: `status-${index}-${entry.date}`,
+        type: 'status',
+        title: `Statut: ${entry.status}`,
+        subtitle: entry.note || 'Mise à jour de statut',
+        date: entry.date
+      })
+    })
+
+    ;(candidature.relances || []).forEach((relance, index) => {
+      events.push({
+        id: `relance-${index}-${relance.created_at || relance.date}`,
+        type: 'relance',
+        title: `Relance ${relance.type || 'Email'}`,
+        subtitle: relance.note || 'Relance ajoutée',
+        date: relance.date || relance.created_at
+      })
+    })
+
+    return events.sort((a, b) => new Date(b.date) - new Date(a.date))
   }, [candidature])
+
+  const nextStep = useMemo(() => {
+    if (!candidature) return null
+
+    const now = new Date()
+    const appliedDate = new Date(candidature.date_candidature)
+    const daysSinceApplication = Math.floor((now - appliedDate) / (1000 * 60 * 60 * 24))
+
+    if (candidature.statut === 'En attente') {
+      if (daysSinceApplication >= 7) {
+        return {
+          title: 'Relance recommandée maintenant',
+          description: 'La candidature est en attente depuis plus de 7 jours.',
+          actionLabel: 'Ajouter une relance',
+          action: () => setShowRelanceForm(true)
+        }
+      }
+      return {
+        title: 'Suivi programmé',
+        description: `Patientez encore ${Math.max(1, 7 - daysSinceApplication)} jour(s) avant la prochaine relance.`,
+        actionLabel: 'Voir calendrier',
+        action: () => navigate('/calendrier')
+      }
+    }
+
+    if (candidature.statut === 'Entretien') {
+      return {
+        title: 'Préparer l’entretien',
+        description: 'Utilisez l’assistant IA pour préparer vos réponses et questions.',
+        actionLabel: 'Ouvrir Assistant IA',
+        action: () => navigate('/assistant')
+      }
+    }
+
+    return {
+      title: 'Analyser le retour',
+      description: 'Capitalisez sur ce refus: mettez à jour CV et pitch, puis relancez votre recherche.',
+      actionLabel: 'Optimiser mon CV',
+      action: () => navigate('/cv')
+    }
+  }, [candidature, navigate])
 
   const formatDate = (date) => {
     if (!date) return '-'
@@ -352,6 +416,29 @@ function CandidatureDetail() {
         </div>
       </div>
 
+      {/* Prochaine etape recommandee */}
+      {nextStep && (
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl border border-blue-500/30 p-6 shadow-lg">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h4 className="text-lg font-semibold text-blue-700 dark:text-blue-300 mb-1">
+                Prochaine etape recommandee
+              </h4>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">{nextStep.description}</p>
+              <button
+                onClick={nextStep.action}
+                className="px-4 py-2 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-700 dark:text-blue-300 border border-blue-500/30 transition-colors"
+              >
+                {nextStep.actionLabel}
+              </button>
+            </div>
+            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+              {nextStep.title}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Historique des relances */}
       <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl border border-purple-500/20 p-6 shadow-lg">
         <div className="flex items-center justify-between mb-4">
@@ -511,16 +598,21 @@ function CandidatureDetail() {
       <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl border border-purple-500/20 p-6 shadow-lg">
         <div className="flex items-center space-x-2 mb-4 text-gray-200">
           <AlertCircle className="w-5 h-5 text-purple-400" />
-          <h4 className="text-lg font-semibold">Historique des statuts</h4>
+          <h4 className="text-lg font-semibold">Timeline des evenements</h4>
         </div>
 
-        {timeline.length === 0 ? (
+        {timelineEvents.length === 0 ? (
           <p className="text-sm text-gray-400">Aucun historique pour le moment.</p>
         ) : (
           <div className="space-y-4">
-            {timeline.map((entry, idx) => {
-              const Icon = statusIcon[entry.status] || Target
-              const color = STATUS_OPTIONS.find(s => s.value === entry.status)?.color || 'text-gray-300'
+            {timelineEvents.map((entry, idx) => {
+              const Icon = entry.type === 'relance' ? Send : entry.type === 'application' ? FileCheck : (statusIcon[entry.title.replace('Statut: ', '')] || Target)
+              const color =
+                entry.type === 'relance'
+                  ? 'text-purple-400'
+                  : entry.type === 'application'
+                    ? 'text-blue-400'
+                    : STATUS_OPTIONS.find(s => s.value === entry.title.replace('Statut: ', ''))?.color || 'text-gray-300'
               return (
                 <div key={`${entry.date}-${idx}`} className="flex items-start space-x-3">
                   <div className={`mt-1 w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center ${color.replace('text', 'bg').replace('-400', '-500/20')}`}>
@@ -528,11 +620,11 @@ function CandidatureDetail() {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold text-white">{entry.status}</div>
+                      <div className="text-sm font-semibold text-white">{entry.title}</div>
                       <div className="text-xs text-gray-400">{formatDate(entry.date)}</div>
                     </div>
-                    {entry.note && (
-                      <p className="text-sm text-gray-300 mt-1">{entry.note}</p>
+                    {entry.subtitle && (
+                      <p className="text-sm text-gray-300 mt-1">{entry.subtitle}</p>
                     )}
                   </div>
                 </div>

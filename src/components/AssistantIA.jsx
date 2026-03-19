@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { 
   Send, Bot, User, Copy, Sparkles, Mail, 
-  CheckCircle, X, Wand2, Brain, TrendingUp, Lightbulb, ArrowRight,
-  Loader2, Stars, Rocket, FileText
+  CheckCircle, Wand2, Brain, TrendingUp, Lightbulb,
+  Loader2, Stars, Rocket, FileText, ExternalLink, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { generateAIResponse } from '../services/openaiService'
 import { useToast } from '../contexts/ToastContext'
@@ -20,7 +20,9 @@ function AssistantIA() {
   const [loading, setLoading] = useState(false)
   const [copiedIndex, setCopiedIndex] = useState(null)
   const [selectedMode, setSelectedMode] = useState(null)
-  const apiEnabled = !!import.meta.env.VITE_AI_FUNCTION_URL
+  const [isQuickModesOpen, setIsQuickModesOpen] = useState(false)
+  const apiEnabled = Boolean((import.meta.env.VITE_AI_FUNCTION_URL || '').trim())
+  const showTechnicalInfo = import.meta.env.DEV
 
   const assistantModes = [
     {
@@ -126,15 +128,32 @@ function AssistantIA() {
     await callAIService(userMessage)
   }
 
-  const handleModeSelect = (mode) => {
+  const handleModeSelect = async (mode) => {
+    if (loading) return
     setSelectedMode(mode.id)
-    setInput(mode.prompt)
+    const userMessage = mode.prompt
+    setInput('')
+    setMessages(prev => [...prev, { role: 'user', content: userMessage }])
+    await callAIService(userMessage)
   }
 
   const copyToClipboard = (text, index) => {
     navigator.clipboard.writeText(text)
     setCopiedIndex(index)
     success('Texte copié dans le presse-papiers !')
+    setTimeout(() => setCopiedIndex(null), 2000)
+  }
+
+  const openMailDraft = (subject, body) => {
+    const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    window.location.href = mailto
+  }
+
+  const copyAndOpenMail = (text, index) => {
+    navigator.clipboard.writeText(text)
+    setCopiedIndex(index)
+    success('Texte copie et client mail ouvert')
+    openMailDraft('Message de candidature', text)
     setTimeout(() => setCopiedIndex(null), 2000)
   }
 
@@ -190,249 +209,268 @@ function AssistantIA() {
         </div>
       </div>
 
-      {/* Templates rapides - Design moderne */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-gray-800 dark:text-white flex items-center space-x-2">
-            <Wand2 className="w-5 h-5 text-purple-400" />
-            <span>Modèles rapides</span>
-          </h3>
-          <button
-            onClick={clearChat}
-            className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center space-x-1"
-          >
-            <X className="w-4 h-4" />
-            <span>Nouvelle conversation</span>
-          </button>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Panneau de prompts rapides */}
+        <div className="lg:col-span-4 bg-white/80 dark:bg-black/40 backdrop-blur-xl rounded-3xl border border-purple-500/20 shadow-xl p-4 h-fit">
+          <div className="flex items-center justify-between mb-3">
+            <button
+              type="button"
+              onClick={() => setIsQuickModesOpen((prev) => !prev)}
+              className="flex items-center space-x-2"
+            >
+              <Wand2 className="w-5 h-5 text-purple-400" />
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white">Modèles rapides</h3>
+              {isQuickModesOpen ? (
+                <ChevronUp className="w-4 h-4 text-gray-500 dark:text-gray-300" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-gray-500 dark:text-gray-300" />
+              )}
+            </button>
+            <button
+              onClick={clearChat}
+              className="text-xs px-2.5 py-1 rounded-lg bg-white/60 dark:bg-white/5 border border-white/10 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-white/10"
+            >
+              Nouvelle conversation
+            </button>
+          </div>
+          <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+            Clique sur un modèle pour générer une réponse automatiquement.
+          </p>
+          {isQuickModesOpen && (
+            <div className="space-y-2">
+              {assistantModes.map(mode => {
+                const Icon = mode.icon
+                const isSelected = selectedMode === mode.id
+                return (
+                  <button
+                    key={mode.id}
+                    onClick={() => handleModeSelect(mode)}
+                    disabled={loading}
+                    className={`w-full group p-3 rounded-xl border transition-all duration-300 text-left disabled:opacity-60 disabled:cursor-not-allowed ${
+                      isSelected
+                        ? `${mode.borderColor} ${mode.bgGradient} bg-gradient-to-br shadow-md`
+                        : 'border-white/10 bg-white/60 dark:bg-white/5 hover:border-purple-500/30'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`inline-flex p-2 rounded-lg bg-gradient-to-br ${mode.gradient}`}>
+                        <Icon className="w-4 h-4 text-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-semibold text-sm text-gray-800 dark:text-white">{mode.name}</h4>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{mode.description}</p>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {assistantModes.map(mode => {
-            const Icon = mode.icon
-            const isSelected = selectedMode === mode.id
-            return (
-              <button
-                key={mode.id}
-                onClick={() => handleModeSelect(mode)}
-                className={`group relative p-5 rounded-2xl border-2 transition-all duration-300 text-left overflow-hidden ${
-                  isSelected
-                    ? `${mode.borderColor} ${mode.bgGradient} bg-gradient-to-br shadow-lg scale-105`
-                    : 'border-white/10 bg-white/5 dark:bg-black/40 hover:border-purple-500/30 hover:bg-white/10 dark:hover:bg-white/5'
+
+        {/* Zone conversation */}
+        <div className="lg:col-span-8 bg-white/80 dark:bg-black/40 backdrop-blur-xl rounded-3xl border border-purple-500/20 shadow-2xl overflow-hidden">
+          <div className="px-4 md:px-6 py-3 border-b border-purple-500/20 flex items-center justify-between">
+            <div>
+              <h3 className="text-base md:text-lg font-semibold text-gray-800 dark:text-white">Conversation</h3>
+              <p className="text-xs text-gray-600 dark:text-gray-400">{messages.length - 1 > 0 ? `${messages.length - 1} message(s)` : 'Aucun message utilisateur pour le moment'}</p>
+            </div>
+            {loading && (
+              <span className="text-xs text-purple-600 dark:text-purple-300 inline-flex items-center gap-1">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Generation...
+              </span>
+            )}
+          </div>
+
+          <div className="h-[360px] md:h-[430px] lg:h-[500px] overflow-y-auto p-4 md:p-6 space-y-5 bg-gradient-to-b from-white/50 to-white/30 dark:from-black/20 dark:to-black/40">
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={`flex items-start space-x-3 ${
+                  message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
                 }`}
               >
-                <div className={`absolute inset-0 bg-gradient-to-br ${mode.gradient} opacity-0 group-hover:opacity-5 transition-opacity`}></div>
-                <div className="relative">
-                  <div className={`inline-flex p-3 rounded-xl bg-gradient-to-br ${mode.gradient} mb-3 shadow-lg`}>
-                    <Icon className="w-5 h-5 text-white" />
+                <div className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center shadow ${
+                  message.role === 'user'
+                    ? 'bg-gradient-to-br from-purple-500 to-pink-500'
+                    : 'bg-gradient-to-br from-blue-500 to-cyan-500'
+                }`}>
+                  {message.role === 'user' ? (
+                    <User className="w-4 h-4 text-white" />
+                  ) : (
+                    <Bot className="w-4 h-4 text-white" />
+                  )}
+                </div>
+
+                <div className={`flex-1 max-w-[88%] md:max-w-[78%] ${
+                  message.role === 'user' ? 'flex flex-col items-end' : ''
+                }`}>
+                  <div
+                    className={`p-3.5 rounded-2xl shadow-sm ${
+                      message.role === 'user'
+                        ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white'
+                        : 'bg-white dark:bg-white/10 text-gray-800 dark:text-gray-200 border border-white/20'
+                    }`}
+                  >
+                    <div className="whitespace-pre-line text-sm leading-relaxed">
+                      {message.content}
+                    </div>
                   </div>
-                  <h4 className="font-bold text-gray-800 dark:text-white mb-1 group-hover:text-purple-400 dark:group-hover:text-purple-300 transition-colors">
-                    {mode.name}
-                  </h4>
-                  <p className="text-xs text-gray-600 dark:text-gray-400">
-                    {mode.description}
-                  </p>
-                  {isSelected && (
-                    <div className="mt-3 flex items-center space-x-1 text-xs text-purple-600 dark:text-purple-400">
-                      <span>Prêt à utiliser</span>
-                      <ArrowRight className="w-3 h-3" />
+
+                  {message.role === 'assistant' && index > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={() => copyToClipboard(message.content, index)}
+                        className="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors group"
+                      >
+                        {copiedIndex === index ? (
+                          <>
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <span className="text-green-500">Copié !</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                            <span>Copier le texte</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => copyAndOpenMail(message.content, index)}
+                        className="flex items-center space-x-2 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500 transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span>Copier + ouvrir mail</span>
+                      </button>
                     </div>
                   )}
                 </div>
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Zone de chat moderne */}
-      <div className="bg-white/80 dark:bg-black/40 backdrop-blur-xl rounded-3xl border border-purple-500/20 shadow-2xl overflow-hidden">
-        {/* Messages avec scroll automatique */}
-        <div className="h-[600px] overflow-y-auto p-6 space-y-6 bg-gradient-to-b from-white/50 to-white/30 dark:from-black/20 dark:to-black/40">
-          {messages.map((message, index) => (
-            <div
-              key={index}
-              className={`flex items-start space-x-4 ${
-                message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
-              }`}
-            >
-              {/* Avatar */}
-              <div className={`flex-shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg ${
-                message.role === 'user'
-                  ? 'bg-gradient-to-br from-purple-500 to-pink-500'
-                  : 'bg-gradient-to-br from-blue-500 to-cyan-500'
-              }`}>
-                {message.role === 'user' ? (
-                  <User className="w-5 h-5 text-white" />
-                ) : (
-                  <Bot className="w-5 h-5 text-white" />
-                )}
               </div>
-              
-              {/* Message bubble */}
-              <div className={`flex-1 max-w-[75%] ${
-                message.role === 'user' ? 'flex flex-col items-end' : ''
-              }`}>
-                <div
-                  className={`p-4 rounded-2xl shadow-lg ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white'
-                      : 'bg-white dark:bg-white/10 text-gray-800 dark:text-gray-200 border border-white/20'
-                  }`}
-                >
-                  <div className="whitespace-pre-line text-sm leading-relaxed">
-                    {message.content}
+            ))}
+
+            {loading && (
+              <div className="flex items-start space-x-3">
+                <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow">
+                  <Bot className="w-4 h-4 text-white animate-pulse" />
+                </div>
+                <div className="bg-white dark:bg-white/10 p-3 rounded-2xl border border-white/20">
+                  <div className="flex items-center space-x-2">
+                    <Loader2 className="w-4 h-4 text-purple-500 animate-spin" />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">L&apos;assistant réfléchit...</span>
                   </div>
                 </div>
-                
-                {/* Actions pour les messages de l'assistant */}
-                {message.role === 'assistant' && index > 0 && (
-                  <button
-                    onClick={() => copyToClipboard(message.content, index)}
-                    className="mt-2 flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors group"
-                  >
-                    {copiedIndex === index ? (
-                      <>
-                        <CheckCircle className="w-4 h-4 text-green-500" />
-                        <span className="text-green-500">Copié !</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                        <span>Copier le texte</span>
-                      </>
-                    )}
-                  </button>
-                )}
               </div>
-            </div>
-          ))}
+            )}
 
-          {/* Indicateur de chargement moderne */}
-          {loading && (
-            <div className="flex items-start space-x-4">
-              <div className="flex-shrink-0 w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg">
-                <Bot className="w-5 h-5 text-white animate-pulse" />
-              </div>
-              <div className="bg-white dark:bg-white/10 p-4 rounded-2xl border border-white/20">
-                <div className="flex items-center space-x-2">
-                  <Loader2 className="w-4 h-4 text-purple-500 animate-spin" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">L&apos;assistant réfléchit...</span>
-                </div>
-                <div className="flex space-x-1 mt-3">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-2 h-2 bg-pink-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input moderne */}
-        <div className="border-t border-purple-500/20 bg-white/80 dark:bg-black/60 backdrop-blur-xl p-4">
-          <div className="flex items-end space-x-3">
-            <div className="flex-1 relative">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSend()
-                  }
-                }}
-                placeholder="Écrivez votre message... (Appuyez sur Entrée pour envoyer)"
-                rows={3}
-                className="w-full px-4 py-3 rounded-2xl border-2 border-purple-500/20 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-500 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/20 outline-none transition-all resize-none"
-                disabled={loading}
-              />
-              <div className="absolute bottom-3 right-3 text-xs text-gray-400">
-                {input.length > 0 && `${input.length} caractères`}
-              </div>
-            </div>
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || loading}
-              className="p-4 rounded-2xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl hover:scale-105 disabled:hover:scale-100 flex items-center justify-center min-w-[56px]"
-            >
-              {loading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Send className="w-5 h-5" />
-              )}
-            </button>
+            <div ref={messagesEndRef} />
           </div>
-          
-          {/* Suggestions rapides */}
-          {messages.length === 1 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Suggestions :</span>
-              {['Lettre de motivation', 'Email de relance', 'Conseils candidature'].map((suggestion) => (
-                <button
-                  key={suggestion}
-                  onClick={() => {
-                    const mode = assistantModes.find(m => 
-                      suggestion.toLowerCase().includes(m.name.toLowerCase())
-                    )
-                    if (mode) handleModeSelect(mode)
+
+          <div className="border-t border-purple-500/20 bg-white/80 dark:bg-black/60 backdrop-blur-xl p-3 md:p-4">
+            <div className="flex items-end space-x-2 md:space-x-3">
+              <div className="flex-1 relative">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault()
+                      handleSend()
+                    }
                   }}
-                  className="text-xs px-3 py-1 rounded-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/20 transition-colors"
-                >
-                  {suggestion}
-                </button>
-              ))}
+                  placeholder="Ecrivez votre message... (Entree pour envoyer)"
+                  rows={2}
+                  className="w-full px-4 py-3 rounded-xl border border-purple-500/20 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-500 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all resize-none"
+                  disabled={loading}
+                />
+                <div className="absolute bottom-2.5 right-3 text-[11px] text-gray-400">
+                  {input.length > 0 && `${input.length} caracteres`}
+                </div>
+              </div>
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || loading}
+                className="p-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md flex items-center justify-center min-w-[48px]"
+              >
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Send className="w-5 h-5" />
+                )}
+              </button>
             </div>
-          )}
+
+            {messages.length === 1 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">Suggestions :</span>
+                {['Lettre de motivation', 'Email de relance', 'Conseils candidature'].map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    onClick={() => {
+                      const mode = assistantModes.find(m =>
+                        suggestion.toLowerCase().includes(m.name.toLowerCase())
+                      )
+                      if (mode) handleModeSelect(mode)
+                    }}
+                    className="text-xs px-3 py-1 rounded-full bg-purple-500/10 hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/20 transition-colors"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Info box moderne */}
-      <div className={`rounded-2xl p-6 border-2 shadow-lg ${
-        apiEnabled 
-          ? 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/30' 
-          : 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/30'
-      }`}>
-        <div className="flex items-start space-x-4">
-          <div className={`p-3 rounded-xl ${
-            apiEnabled 
-              ? 'bg-gradient-to-br from-green-500 to-emerald-500' 
-              : 'bg-gradient-to-br from-blue-500 to-cyan-500'
-          } shadow-lg`}>
-            {apiEnabled ? (
-              <Stars className="w-6 h-6 text-white" />
-            ) : (
-              <Sparkles className="w-6 h-6 text-white" />
-            )}
-          </div>
-          <div className="flex-1">
-            {apiEnabled ? (
-              <>
-                <h4 className="font-bold text-green-700 dark:text-green-300 mb-1 flex items-center space-x-2">
-                  <span>✅ IA backend activée</span>
-                </h4>
-                <p className="text-sm text-green-600 dark:text-green-400">
-                  L&apos;assistant utilise une Cloud Function Firebase pour appeler OpenAI côté serveur, sans exposer la clé API dans le navigateur.
-                </p>
-              </>
-            ) : (
-              <>
-                <h4 className="font-bold text-blue-700 dark:text-blue-300 mb-1">
-                  💡 Mode démo activé
-                </h4>
-                <p className="text-sm text-blue-600 dark:text-blue-400 mb-3">
-                  L&apos;assistant utilise des réponses pré-programmées. Pour activer l&apos;IA sécurisée, configurez l&apos;URL de la Cloud Function dans vos variables d&apos;environnement.
-                </p>
-                <div className="bg-white/50 dark:bg-black/40 rounded-xl p-3 border border-blue-500/20">
-                  <code className="text-xs text-gray-800 dark:text-gray-200">
-                    VITE_AI_FUNCTION_URL=https://&lt;region&gt;-&lt;project-id&gt;.cloudfunctions.net/generateAIResponse
-                  </code>
-                </div>
-              </>
-            )}
+      {/* Info technique (dev uniquement) */}
+      {showTechnicalInfo && (
+        <div className={`rounded-2xl p-6 border-2 shadow-lg ${
+          apiEnabled
+            ? 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/30'
+            : 'bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/30'
+        }`}>
+          <div className="flex items-start space-x-4">
+            <div className={`p-3 rounded-xl ${
+              apiEnabled
+                ? 'bg-gradient-to-br from-green-500 to-emerald-500'
+                : 'bg-gradient-to-br from-blue-500 to-cyan-500'
+            } shadow-lg`}>
+              {apiEnabled ? (
+                <Stars className="w-6 h-6 text-white" />
+              ) : (
+                <Sparkles className="w-6 h-6 text-white" />
+              )}
+            </div>
+            <div className="flex-1">
+              {apiEnabled ? (
+                <>
+                  <h4 className="font-bold text-green-700 dark:text-green-300 mb-1 flex items-center space-x-2">
+                    <span>✅ IA backend activée</span>
+                  </h4>
+                  <p className="text-sm text-green-600 dark:text-green-400">
+                    L&apos;assistant utilise une Cloud Function Firebase pour appeler OpenAI côté serveur.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h4 className="font-bold text-blue-700 dark:text-blue-300 mb-1">
+                    💡 Mode démo activé
+                  </h4>
+                  <p className="text-sm text-blue-600 dark:text-blue-400 mb-3">
+                    Ajoutez l&apos;URL de la Cloud Function dans l&apos;environnement.
+                  </p>
+                  <div className="bg-white/50 dark:bg-black/40 rounded-xl p-3 border border-blue-500/20">
+                    <code className="text-xs text-gray-800 dark:text-gray-200">
+                      VITE_AI_FUNCTION_URL=https://&lt;region&gt;-&lt;project-id&gt;.cloudfunctions.net/generateAIResponse
+                    </code>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { auth } from '../firebaseConfig'
 
-const AI_FUNCTION_URL = import.meta.env.VITE_AI_FUNCTION_URL || ''
+const AI_FUNCTION_URL = (import.meta.env.VITE_AI_FUNCTION_URL || '').trim()
 
 /**
  * Génère une réponse IA pour l'assistant de candidatures

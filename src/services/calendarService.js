@@ -5,6 +5,16 @@ const GOOGLE_API_KEY = import.meta.env.VITE_GOOGLE_API_KEY || ''
 const GOOGLE_DISCOVERY_DOCS = ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest']
 const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/calendar.events'
 
+const createCalendarError = (message, code) => {
+  const err = new Error(message)
+  err.code = code
+  return err
+}
+
+export const hasGoogleCalendarCredentials = () => {
+  return Boolean(GOOGLE_CLIENT_ID && GOOGLE_API_KEY)
+}
+
 // Charger l'API Google
 let gapiLoaded = false
 let gisLoaded = false
@@ -51,11 +61,14 @@ export const loadGoogleAPI = () => {
 // Initialiser Google Calendar API
 export const initializeGoogleCalendar = async () => {
   try {
-    await loadGoogleAPI()
-    
-    if (!GOOGLE_CLIENT_ID || !GOOGLE_API_KEY) {
-      throw new Error('Google Calendar API credentials not configured')
+    if (!hasGoogleCalendarCredentials()) {
+      throw createCalendarError(
+        'Google Calendar non configure. Ajoutez VITE_GOOGLE_CLIENT_ID et VITE_GOOGLE_API_KEY dans votre fichier .env.local puis redemarrez le serveur.',
+        'GOOGLE_CALENDAR_MISSING_CREDENTIALS'
+      )
     }
+
+    await loadGoogleAPI()
 
     await window.gapi.client.init({
       apiKey: GOOGLE_API_KEY,
@@ -64,7 +77,9 @@ export const initializeGoogleCalendar = async () => {
 
     return true
   } catch (error) {
-    console.error('Error initializing Google Calendar:', error)
+    if (error?.code !== 'GOOGLE_CALENDAR_MISSING_CREDENTIALS') {
+      console.error('Error initializing Google Calendar:', error)
+    }
     throw error
   }
 }

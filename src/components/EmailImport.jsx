@@ -3,11 +3,213 @@ import { Mail, Upload, Wand2, CheckCircle, AlertCircle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { addCandidature } from '../services/candidaturesService'
 import { DEMO_MODE, saveDemoCandidatures, getDemoCandidatures, generateId } from '../demoData'
-import { auth } from '../firebaseConfig'
+
+const EMAIL_REGEX = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g
+
+const STOP_WORDS_COMPANY = new Set([
+  'bonjour', 'bonsoir', 'madame', 'monsieur', 'cordialement', 'merci', 'equipe', 'l equipe', 'hr', 'rh'
+])
+
+function normalizeText(text = '') {
+  return text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function cleanExtractedValue(value = '') {
+  return value
+    .replace(/^[\s:;,\-–—|«»“"'`]+/, '')
+    .replace(/[\s:;,\-–—|«»“"'`]+$/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+function scoreCompanyCandidate(value = '') {
+  const cleaned = cleanExtractedValue(value)
+  if (!cleaned || cleaned.length < 2) return 0
+
+  const lower = normalizeText(cleaned).toLowerCase()
+  if (STOP_WORDS_COMPANY.has(lower)) return 0
+
+  let score = 0
+  if (/[A-Z]/.test(cleaned)) score += 2
+  if (/\b(SAS|SARL|SA|Groupe|Group|Inc|Ltd|Studio|Technologies|Solutions)\b/i.test(cleaned)) score += 2
+  if (cleaned.split(' ').length <= 5) score += 1
+  if (/^l[ea]\s+/i.test(cleaned)) score -= 1
+
+  return score
+}
+
+function extractEntreprise(rawText) {
+  const candidates = []
+  const patterns = [
+    /(?:chez|at|pour|from)\s+([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{2,80})/g,
+    /(?:entreprise|company|soci[eé]t[eé])\s*:?\s*([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{2,80})/g,
+    /poste\s+de\s+[^\n.]{2,80}\s+chez\s+([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{2,80})/gi,
+    /(?:rejoindre|join)\s+([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{2,80})/gi,
+    /envers\s+([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{2,80})\s+en\s+postulant/gi,
+    /au\s+sein\s+de\s+([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{2,80})/gi,
+    /au\s+sein\s+de\s+(?:la|le|l['’])?\s*(commune|mairie|ville|collectivite)\s+de\s+([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{2,80})/gi,
+    /(?:commune|mairie|ville|collectivite)\s+de\s+([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{2,80})/gi
+  ]
+
+  patterns.forEach((pattern) => {
+    for (const match of rawText.matchAll(pattern)) {
+      const rawCandidate = match[2] ? `${match[1]} de ${match[2]}` : (match[1] || '')
+      const candidate = cleanExtractedValue(rawCandidate)
+      const score = scoreCompanyCandidate(candidate)
+      if (score > 0) candidates.push({ value: candidate, score })
+    }
+  })
+
+  const signatureLines = rawText
+    .split('\n')
+    .map((line) => cleanExtractedValue(line))
+    .filter(Boolean)
+    .slice(-8)
+
+  signatureLines.forEach((line) => {
+    if (/\b(recruteur|recruiter|rh|hr|talent|hiring)\b/i.test(line)) return
+    if (/^[A-Z][A-Za-z0-9&.\- ]{2,40}$/.test(line)) {
+      const score = scoreCompanyCandidate(line)
+      if (score > 0) candidates.push({ value: line, score: score + 1 })
+    }
+  })
+
+  if (candidates.length === 0) return { value: '', confidence: 'low' }
+  const best = candidates.sort((a, b) => b.score - a.score)[0]
+  return { value: best.value, confidence: best.score >= 4 ? 'high' : 'medium' }
+}
+
+function extractPoste(rawText) {
+  const candidates = []
+  const patterns = [
+    /(?:poste|position|role|intitule)\s*(?:de|d'|of)?\s*:?\s*([^\n.]{4,120})/gi,
+    /candidature\s+(?:pour|for)\s+(?:le poste|the position)?\s*(?:de|of)?\s*:?\s*([^\n.]{4,120})/gi,
+    /offre\s*[«"“]?([^»"\n]{6,140})[»"”]?/gi,
+    /postul(?:é|e|er|ant)\s+[aà]\s+l['’]offre\s*[«"“]?([^»"\n]{6,140})[»"”]?/gi,
+    /(?:developpeur|développeur|developer|ingenieur|ingénieur|consultant|analyste|data scientist|product manager|devops)\s+[^\n.]{0,50}/gi
+  ]
+
+  patterns.forEach((pattern) => {
+    for (const match of rawText.matchAll(pattern)) {
+      const candidate = cleanExtractedValue(match[1] || match[0] || '')
+      if (!candidate) continue
+      let score = 1
+      if (candidate.length >= 8) score += 1
+      if (/\b(stage|alternance|cdi|cdd)\b/i.test(candidate)) score += 1
+      if (candidate.split(' ').length <= 8) score += 1
+      candidates.push({ value: candidate, score })
+    }
+  })
+
+  if (candidates.length === 0) return { value: '', confidence: 'low' }
+  const best = candidates.sort((a, b) => b.score - a.score)[0]
+  return { value: best.value, confidence: best.score >= 4 ? 'high' : 'medium' }
+}
+
+function extractRecruiterEmail(rawText) {
+  const emails = Array.from(rawText.matchAll(EMAIL_REGEX)).map((m) => (m[1] || '').trim())
+  if (emails.length === 0) return ''
+
+  const prioritized = emails.filter((e) => !/noreply|no-reply|do-not-reply/i.test(e))
+  return prioritized[0] || emails[0]
+}
+
+function extractContactName(rawText) {
+  const patterns = [
+    /(?:cordialement|bien cordialement|regards|sincerely|merci),?\s*([A-Z][A-Za-z' -]{2,40})/i,
+    /([A-Z][A-Za-z' -]{2,40})\s*[-–—|]\s*(?:recruteur|recruiter|rh|hr|talent)/i,
+    /(?:recruteur|recruiter|rh|hr|talent)\s*[-–—|:]\s*([A-Z][A-Za-z' -]{2,40})/i,
+    /^([A-Z][A-Za-z' -]{2,40})\s+[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/m
+  ]
+
+  for (const pattern of patterns) {
+    const match = rawText.match(pattern)
+    if (match?.[1]) return cleanExtractedValue(match[1])
+  }
+
+  return ''
+}
+
+function detectStatus(rawText) {
+  const text = normalizeText(rawText).toLowerCase()
+
+  const refusalSignals = /(refus|regret|unfortunately|malheureusement|ne pouvons donner suite|non retenu|not selected|declined|rejected|n['’]a pas ete retenu[e]?)/i
+  const interviewSignals = /(entretien|interview|rendez[- ]vous|call|visio|meeting|echange|échange)/i
+  const pendingSignals = /(sera examinee|sera examinée|dans les meilleurs delais|dans les meilleurs délais|aucune reponse|aucune réponse|votre candidature sera examinee|votre candidature sera examinée)/i
+  const conditionalRefusalSignals = /(si\s+dans\s+un\s+delai|si\s+dans\s+un\s+délai|nous\s+vous\s+invitons\s+a\s+considerer|considere[rz]\s+que)/i
+
+  // Cas typique d'accuse de reception: mention "n'a pas ete retenue" mais au conditionnel/futur
+  if (refusalSignals.test(text) && conditionalRefusalSignals.test(text) && pendingSignals.test(text)) {
+    return { value: 'En attente', confidence: 'medium' }
+  }
+
+  if (refusalSignals.test(text)) return { value: 'Refus', confidence: 'high' }
+  if (interviewSignals.test(text)) return { value: 'Entretien', confidence: 'medium' }
+  if (pendingSignals.test(text)) return { value: 'En attente', confidence: 'medium' }
+  return { value: 'En attente', confidence: 'low' }
+}
+
+function evaluateExtractionConfidence(data, rawText, diagnostics = {}) {
+  let score = 0
+  const strengths = []
+  const corrections = []
+
+  if (data.entreprise?.trim()) {
+    score += diagnostics.entrepriseConfidence === 'high' ? 30 : 24
+    strengths.push('Entreprise détectée')
+  } else {
+    corrections.push('Entreprise manquante')
+  }
+
+  if (data.poste?.trim()) {
+    score += diagnostics.posteConfidence === 'high' ? 28 : 22
+    strengths.push('Poste détecté')
+  } else {
+    corrections.push('Poste manquant')
+  }
+
+  if (data.email?.trim()) {
+    score += 16
+    strengths.push('Email recruteur détecté')
+  } else {
+    corrections.push('Email recruteur non détecté')
+  }
+
+  if (data.contact?.trim()) {
+    score += 10
+    strengths.push('Contact détecté')
+  } else {
+    corrections.push('Contact à vérifier')
+  }
+
+  if (diagnostics.statusConfidence === 'high') score += 12
+  else if (diagnostics.statusConfidence === 'medium') score += 8
+  else {
+    score += 4
+    corrections.push('Statut probablement générique')
+  }
+
+  const richText = (rawText || '').trim().length >= 200
+  score += richText ? 6 : 2
+  if (!richText) corrections.push('Email trop court pour une extraction très fiable')
+
+  score = Math.min(100, score)
+
+  let level = 'Faible'
+  if (score >= 80) level = 'Élevé'
+  else if (score >= 60) level = 'Moyen'
+
+  return { score, level, strengths, corrections }
+}
 
 function EmailImport() {
   const [emailContent, setEmailContent] = useState('')
   const [parsedData, setParsedData] = useState(null)
+  const [diagnostics, setDiagnostics] = useState(null)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
@@ -16,84 +218,54 @@ function EmailImport() {
   const parseEmail = () => {
     setLoading(true)
     setError('')
+    setParsedData(null)
+    setDiagnostics(null)
     
     setTimeout(() => {
       try {
+        const raw = emailContent.trim()
+        if (raw.length < 25) {
+          throw new Error('CONTENU_TROP_COURT')
+        }
+
+        const entreprise = extractEntreprise(raw)
+        const poste = extractPoste(raw)
+        const status = detectStatus(raw)
+        const recruiterEmail = extractRecruiterEmail(raw)
+        const contactName = extractContactName(raw)
+
         const data = {
-          entreprise: '',
-          poste: '',
-          statut: 'En attente',
-          contact: '',
-          notes: emailContent,
+          entreprise: entreprise.value || '',
+          poste: poste.value || '',
+          statut: status.value,
+          email: recruiterEmail,
+          contact: contactName,
+          notes: raw,
           date_candidature: new Date().toISOString().split('T')[0]
         }
 
-        // Extraction intelligente de l'entreprise
-        const entreprisePatterns = [
-          /(?:chez|at|pour|from)\s+([A-Z][A-Za-z0-9\s&-]{2,30})/i,
-          /(?:société|company|entreprise)\s+([A-Z][A-Za-z0-9\s&-]{2,30})/i,
-          /([A-Z][A-Za-z0-9\s&-]{2,30})(?:\s+recrute|\s+recherche)/i
-        ]
-        
-        for (const pattern of entreprisePatterns) {
-          const match = emailContent.match(pattern)
-          if (match) {
-            data.entreprise = match[1].trim()
-            break
-          }
+        // Calcul de la date de relance (+7 jours) uniquement si candidature active
+        if (data.statut !== 'Refus') {
+          const dateRelance = new Date()
+          dateRelance.setDate(dateRelance.getDate() + 7)
+          data.date_relance = dateRelance.toISOString().split('T')[0]
+        } else {
+          data.date_relance = ''
         }
 
-        // Extraction du poste
-        const postePatterns = [
-          /(?:poste|position|role)\s+(?:de|d'|of)?\s*:?\s*([^\n.]{5,60})/i,
-          /(?:développeur|developer|ingénieur|engineer|consultant|analyste)\s+([^\n.]{3,40})/i,
-          /(?:candidature|application)\s+(?:pour|for)\s+(?:le poste|the position)\s+(?:de|of)?\s*:?\s*([^\n.]{5,60})/i
-        ]
-        
-        for (const pattern of postePatterns) {
-          const match = emailContent.match(pattern)
-          if (match) {
-            data.poste = match[1].trim()
-            break
-          }
-        }
-
-        // Extraction du contact (email)
-        const emailMatch = emailContent.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/i)
-        if (emailMatch) {
-          data.contact = emailMatch[1]
-        }
-
-        // Extraction du nom du recruteur
-        const nomPatterns = [
-          /(?:cordialement|regards|sincerely),?\s*([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
-          /([A-Z][a-z]+\s+[A-Z][a-z]+)\s*(?:recruteur|recruiter|RH|HR)/i
-        ]
-        
-        for (const pattern of nomPatterns) {
-          const match = emailContent.match(pattern)
-          if (match) {
-            data.contact = match[1].trim() + (data.contact ? ` - ${data.contact}` : '')
-            break
-          }
-        }
-
-        // Détection du statut
-        if (/entretien|interview|rendez-vous/i.test(emailContent)) {
-          data.statut = 'Entretien'
-        } else if (/refus|regret|unfortunately|malheureusement/i.test(emailContent)) {
-          data.statut = 'Refus'
-        }
-
-        // Calcul de la date de relance (+7 jours)
-        const dateRelance = new Date()
-        dateRelance.setDate(dateRelance.getDate() + 7)
-        data.date_relance = dateRelance.toISOString().split('T')[0]
-
+        setDiagnostics({
+          entrepriseConfidence: entreprise.confidence,
+          posteConfidence: poste.confidence,
+          statusConfidence: status.confidence
+        })
         setParsedData(data)
         setLoading(false)
       } catch (err) {
-        setError('Erreur lors de l\'analyse de l\'email. Essayez de copier plus de contenu.')
+        if (err?.message === 'CONTENU_TROP_COURT') {
+          setError('Email trop court. Collez un contenu plus complet pour une extraction fiable.')
+        } else {
+          setError('Erreur lors de l\'analyse de l\'email. Essayez de copier plus de contenu.')
+        }
         setLoading(false)
       }
     }, 1000)
@@ -172,9 +344,14 @@ L'équipe RH Decathlon`
   const useExample = (example) => {
     setEmailContent(example.content)
     setParsedData(null)
+      setDiagnostics(null)
     setSuccess(false)
     setError('')
   }
+
+  const extractionConfidence = parsedData
+    ? evaluateExtractionConfidence(parsedData, emailContent, diagnostics)
+    : null
 
   return (
     <div className="space-y-6 animate-slide-up">
@@ -269,6 +446,54 @@ L'équipe RH Decathlon`
 
           {parsedData && !success && (
             <div className="space-y-4">
+              {/* Score de confiance */}
+              {extractionConfidence && (
+                <div className="p-4 rounded-xl border bg-white/70 dark:bg-white/5 border-gray-200 dark:border-white/10">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-gray-800 dark:text-white">Score de confiance</p>
+                    <span className={`text-xs px-2 py-1 rounded-full border ${
+                      extractionConfidence.score >= 80
+                        ? 'text-green-700 dark:text-green-300 border-green-500/40 bg-green-500/10'
+                        : extractionConfidence.score >= 60
+                          ? 'text-orange-700 dark:text-orange-300 border-orange-500/40 bg-orange-500/10'
+                          : 'text-red-700 dark:text-red-300 border-red-500/40 bg-red-500/10'
+                    }`}>
+                      {extractionConfidence.level} ({extractionConfidence.score}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden mb-3">
+                    <div
+                      className={`h-full transition-all ${
+                        extractionConfidence.score >= 80
+                          ? 'bg-green-500'
+                          : extractionConfidence.score >= 60
+                            ? 'bg-orange-500'
+                            : 'bg-red-500'
+                      }`}
+                      style={{ width: `${extractionConfidence.score}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <p className="font-semibold text-green-700 dark:text-green-300 mb-1">Détecté correctement</p>
+                      <ul className="space-y-1 text-gray-700 dark:text-gray-300">
+                        {extractionConfidence.strengths.slice(0, 3).map((item) => (
+                          <li key={item}>• {item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-orange-700 dark:text-orange-300 mb-1">À vérifier</p>
+                      <ul className="space-y-1 text-gray-700 dark:text-gray-300">
+                        {extractionConfidence.corrections.slice(0, 3).map((item) => (
+                          <li key={item}>• {item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   Entreprise
@@ -306,6 +531,18 @@ L'équipe RH Decathlon`
                   <option value="Entretien">Entretien</option>
                   <option value="Refus">Refus</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Email recruteur
+                </label>
+                <input
+                  type="email"
+                  value={parsedData.email || ''}
+                  onChange={(e) => setParsedData({ ...parsedData, email: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-gray-300 dark:border-white/20 bg-white dark:bg-white/5 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none transition-all"
+                />
               </div>
 
               <div>

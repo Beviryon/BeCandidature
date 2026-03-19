@@ -44,18 +44,7 @@ function CalendarIntegration() {
   }
 
   const handleConnect = async () => {
-    try {
-      setLoading(true)
-      await initializeGoogleCalendar()
-      await authenticateGoogle()
-      setIsConnected(true)
-      success('Connexion à Google Calendar réussie !')
-    } catch (err) {
-      console.error('Error connecting:', err)
-      showError(err.message || 'Erreur lors de la connexion à Google Calendar')
-    } finally {
-      setLoading(false)
-    }
+    info('Fonctionnalité bientôt disponible')
   }
 
   const handleDisconnect = () => {

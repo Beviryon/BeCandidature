@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { FileSpreadsheet, Upload, CheckCircle, AlertCircle, Download, X, Eye, EyeOff, Loader2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { useCandidatures } from '../hooks/useCandidatures'
@@ -33,6 +33,7 @@ function ExcelImport() {
   const [showPreview, setShowPreview] = useState(false)
   const [googleSheetUrl, setGoogleSheetUrl] = useState('')
   const [importMode, setImportMode] = useState('file') // 'file' or 'google'
+  const [currentStep, setCurrentStep] = useState(1)
 
   // Trouver le mapping automatique des colonnes
   const findColumnMapping = (headers) => {
@@ -212,6 +213,7 @@ function ExcelImport() {
       setParsedData(mappedData)
       setPreviewData(mappedData.slice(0, 5)) // Afficher les 5 premières lignes
       setShowPreview(true)
+      setCurrentStep(2)
       success(`${mappedData.length} candidature(s) détectée(s) dans le fichier`)
     } catch (err) {
       console.error('Erreur parsing Excel:', err)
@@ -457,6 +459,7 @@ function ExcelImport() {
       setParsedData(mappedData)
       setPreviewData(mappedData.slice(0, 5))
       setShowPreview(true)
+      setCurrentStep(2)
       success(`${mappedData.length} candidature(s) détectée(s) dans le Google Sheet`)
     } catch (err) {
       console.error('Erreur import Google Sheets:', err)
@@ -557,6 +560,26 @@ function ExcelImport() {
     info('Template téléchargé !')
   }
 
+  const importConfidence = useMemo(() => {
+    if (parsedData.length === 0) {
+      return { score: 0, level: 'faible', mappedRequired: 0, errorRows: 0 }
+    }
+
+    const requiredFields = ['entreprise', 'poste', 'date_candidature', 'statut']
+    const mappedRequired = requiredFields.filter((field) => columnMapping[field] !== undefined).length
+    const mappingScore = (mappedRequired / requiredFields.length) * 70
+
+    const errorRows = parsedData.filter((row) => row._dateError || row._statusError).length
+    const qualityScore = Math.max(0, 30 - Math.round((errorRows / parsedData.length) * 30))
+
+    const score = Math.round(mappingScore + qualityScore)
+    let level = 'faible'
+    if (score >= 80) level = 'eleve'
+    else if (score >= 60) level = 'moyen'
+
+    return { score, level, mappedRequired, errorRows }
+  }, [parsedData, columnMapping])
+
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-slide-up">
       {/* Header */}
@@ -569,7 +592,33 @@ function ExcelImport() {
         </p>
       </div>
 
+      {/* Wizard steps */}
+      <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-4 border border-purple-500/20 shadow-lg">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {[
+            { id: 1, label: 'Source' },
+            { id: 2, label: 'Mapping' },
+            { id: 3, label: 'Validation' }
+          ].map((step) => (
+            <button
+              key={step.id}
+              onClick={() => {
+                if (step.id === 1 || (step.id > 1 && parsedData.length > 0)) setCurrentStep(step.id)
+              }}
+              className={`px-3 py-2 rounded-xl text-sm font-medium border transition-all ${
+                currentStep === step.id
+                  ? 'bg-purple-500/20 border-purple-500/40 text-purple-700 dark:text-purple-300'
+                  : 'bg-white/60 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400'
+              }`}
+            >
+              Etape {step.id}: {step.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Mode selection */}
+      {currentStep === 1 && (
       <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/20 shadow-lg">
         <div className="flex items-center space-x-4 mb-4">
           <button
@@ -690,9 +739,10 @@ function ExcelImport() {
           </button>
         </div>
       </div>
+      )}
 
       {/* Mapping Debug Info */}
-      {showPreview && Object.keys(columnMapping).length > 0 && (
+      {currentStep >= 2 && showPreview && Object.keys(columnMapping).length > 0 && (
         <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
           <h4 className="text-sm font-semibold text-blue-300 mb-2">Mapping des colonnes détecté :</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
@@ -711,7 +761,7 @@ function ExcelImport() {
       )}
 
       {/* Preview */}
-      {showPreview && parsedData.length > 0 && (
+      {currentStep >= 2 && showPreview && parsedData.length > 0 && (
         <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/20 shadow-lg">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -792,10 +842,19 @@ function ExcelImport() {
             </div>
           )}
 
-          <div className="flex items-center space-x-3 mt-6 pt-6 border-t border-white/10">
+          <div className="flex flex-wrap items-center gap-3 mt-6 pt-6 border-t border-white/10">
+            {currentStep === 2 && (
+              <button
+                onClick={() => setCurrentStep(3)}
+                className="px-6 py-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-700 dark:text-blue-300 rounded-xl border border-blue-500/30 transition-colors"
+              >
+                Continuer vers validation
+              </button>
+            )}
+
             <button
               onClick={handleImport}
-              disabled={importing}
+              disabled={importing || currentStep !== 3}
               className="flex-1 flex items-center justify-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold rounded-xl transform transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {importing ? (
@@ -817,12 +876,51 @@ function ExcelImport() {
                 setPreviewData([])
                 setShowPreview(false)
                 setGoogleSheetUrl('')
+                setCurrentStep(1)
                 if (fileInputRef.current) fileInputRef.current.value = ''
               }}
               className="px-6 py-3 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-xl border border-white/10 transition-colors"
             >
               <X className="w-5 h-5 inline mr-2" />
               Réinitialiser
+            </button>
+          </div>
+        </div>
+      )}
+
+      {currentStep === 3 && parsedData.length > 0 && (
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-emerald-500/20 shadow-lg">
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">Validation finale</h3>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Verifiez le score de confiance et lancez l&apos;import si tout est correct.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="rounded-xl p-3 bg-white/70 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Score de confiance</p>
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-300">{importConfidence.score}%</p>
+            </div>
+            <div className="rounded-xl p-3 bg-white/70 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Colonnes cle detectees</p>
+              <p className="text-2xl font-bold text-blue-600 dark:text-blue-300">{importConfidence.mappedRequired}/4</p>
+            </div>
+            <div className="rounded-xl p-3 bg-white/70 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+              <p className="text-xs text-gray-500 dark:text-gray-400">Lignes a verifier</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-300">{importConfidence.errorRows}</p>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              onClick={() => setCurrentStep(2)}
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+            >
+              Retour mapping
+            </button>
+            <button
+              onClick={handleImport}
+              disabled={importing}
+              className="px-5 py-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold disabled:opacity-50"
+            >
+              {importing ? 'Import en cours...' : `Importer ${parsedData.length} candidature(s)`}
             </button>
           </div>
         </div>
