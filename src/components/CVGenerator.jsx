@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { 
   Download, Eye, Save, FileText, Zap, Sparkles, QrCode, TrendingUp, 
   ExternalLink, Palette, Layout, Briefcase, GraduationCap, Award,
@@ -29,7 +29,8 @@ function CVGenerator() {
     competences: '',
     langues: '',
     loisirs: '',
-    certifications: [{ nom: '', organisme: '', date: '' }]
+    certifications: [{ nom: '', organisme: '', date: '' }],
+    cibleAts: ''
   })
 
   const [selectedTemplate, setSelectedTemplate] = useState('moderne')
@@ -306,6 +307,87 @@ function CVGenerator() {
       setIsGeneratingPdf(false)
     }
   }
+
+  const extractKeywords = (text) => {
+    const stopWords = new Set([
+      'de', 'du', 'des', 'la', 'le', 'les', 'un', 'une', 'et', 'ou', 'pour', 'avec',
+      'dans', 'sur', 'par', 'au', 'aux', 'en', 'd', 'l', 'a', 'the', 'to', 'of',
+      'and', 'or', 'for', 'you', 'your', 'nous', 'vous', 'notre', 'votre'
+    ])
+
+    return String(text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9+#./-]/g, ' ')
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 2 && !stopWords.has(token))
+  }
+
+  const atsAnalysis = useMemo(() => {
+    const hasIdentity = Boolean(formData.prenom && formData.nom)
+    const hasTitle = Boolean(formData.titre)
+    const hasContact = Boolean(formData.email && formData.telephone)
+    const hasExperience = formData.experiences.some((exp) => exp.entreprise || exp.poste || exp.description)
+    const hasEducation = formData.formations.some((form) => form.ecole || form.diplome)
+    const hasSkills = Boolean(formData.competences?.trim())
+    const hasSummary = Boolean(formData.resume?.trim())
+
+    const normalizedCvText = [
+      formData.titre,
+      formData.resume,
+      formData.competences,
+      formData.langues,
+      ...formData.experiences.map((exp) => `${exp.poste} ${exp.entreprise} ${exp.description}`),
+      ...formData.formations.map((form) => `${form.diplome} ${form.ecole} ${form.description}`)
+    ]
+      .join(' ')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+
+    const targetKeywords = extractKeywords(formData.cibleAts).slice(0, 30)
+    const uniqueKeywords = [...new Set(targetKeywords)]
+    const matchedKeywords = uniqueKeywords.filter((kw) => normalizedCvText.includes(kw))
+    const keywordMatchRate = uniqueKeywords.length === 0
+      ? null
+      : Math.round((matchedKeywords.length / uniqueKeywords.length) * 100)
+
+    let score = 0
+    if (hasIdentity) score += 10
+    if (hasTitle) score += 10
+    if (hasContact) score += 10
+    if (hasSummary) score += 10
+    if (hasExperience) score += 20
+    if (hasEducation) score += 10
+    if (hasSkills) score += 15
+    if (keywordMatchRate !== null) score += Math.round((keywordMatchRate / 100) * 15)
+
+    const recommendations = []
+    if (!hasTitle) recommendations.push('Ajoute un titre de poste clair (ex: Développeur React Alternance).')
+    if (!hasSummary) recommendations.push('Ajoute un résumé professionnel de 3 à 5 lignes avec mots-clés métier.')
+    if (!hasExperience) recommendations.push('Ajoute au moins une expérience avec missions et résultats.')
+    if (!hasEducation) recommendations.push('Ajoute ta formation principale (diplôme, école, année).')
+    if (!hasSkills) recommendations.push('Ajoute une section compétences avec outils/technos précis.')
+    if (keywordMatchRate !== null && keywordMatchRate < 50) {
+      recommendations.push('Renforce les mots-clés de l’offre cible dans le titre, résumé et expériences.')
+    }
+    if (!formData.cibleAts?.trim()) {
+      recommendations.push('Colle une offre cible pour mesurer la correspondance ATS en temps réel.')
+    }
+
+    const scoreBand = score >= 80 ? 'excellent' : score >= 60 ? 'bon' : score >= 40 ? 'moyen' : 'faible'
+
+    return {
+      score: Math.min(score, 100),
+      scoreBand,
+      keywordMatchRate,
+      targetKeywords: uniqueKeywords,
+      matchedKeywords,
+      recommendations
+    }
+  }, [formData])
 
   const cvServices = [
     {
@@ -885,7 +967,7 @@ function CVGenerator() {
             
             {/* Navigation sections */}
             <div className="flex flex-wrap gap-2 mb-4">
-              {['personal', 'experience', 'education', 'skills'].map(section => (
+              {['personal', 'experience', 'education', 'skills', 'ats'].map(section => (
                 <button
                   key={section}
                   onClick={() => setActiveSection(section)}
@@ -899,6 +981,7 @@ function CVGenerator() {
                   {section === 'experience' && 'Expériences'}
                   {section === 'education' && 'Formation'}
                   {section === 'skills' && 'Compétences'}
+                  {section === 'ats' && 'ATS'}
                 </button>
               ))}
             </div>
@@ -981,6 +1064,23 @@ function CVGenerator() {
                   <textarea name="loisirs" placeholder="Centres d'intérêt / Loisirs" value={formData.loisirs} onChange={handleChange} rows={3} className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none resize-none" />
                 </div>
               )}
+
+              {/* ATS */}
+              {activeSection === 'ats' && (
+                <div className="space-y-4">
+                  <textarea
+                    name="cibleAts"
+                    placeholder="Collez l'offre d'emploi cible pour analyser les mots-clés ATS..."
+                    value={formData.cibleAts}
+                    onChange={handleChange}
+                    rows={8}
+                    className="w-full px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-gray-900 dark:text-white focus:ring-2 focus:ring-purple-500 outline-none resize-none"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Astuce: colle la mission + les compétences demandées. Le score ATS se met à jour automatiquement.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1000,6 +1100,71 @@ function CVGenerator() {
               ? 'Mode ATS actif: export en PDF texte lisible par les ATS.'
               : 'Pour les candidatures en ligne, privilégie un template ATS (badge vert).'}
           </p>
+
+          <div className="mt-4 bg-white/80 dark:bg-black/40 rounded-xl p-4 border border-purple-500/20">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-bold text-gray-800 dark:text-white">Score ATS</h4>
+              <span
+                className={`text-xs font-semibold px-2 py-1 rounded-full border ${
+                  atsAnalysis.scoreBand === 'excellent'
+                    ? 'bg-green-500/15 text-green-700 dark:text-green-300 border-green-500/30'
+                    : atsAnalysis.scoreBand === 'bon'
+                      ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30'
+                      : atsAnalysis.scoreBand === 'moyen'
+                        ? 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border-yellow-500/30'
+                        : 'bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30'
+                }`}
+              >
+                {atsAnalysis.scoreBand.toUpperCase()}
+              </span>
+            </div>
+
+            <div className="mb-3">
+              <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-300 mb-1">
+                <span>Compatibilité ATS</span>
+                <span>{atsAnalysis.score}/100</span>
+              </div>
+              <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
+                  style={{ width: `${atsAnalysis.score}%` }}
+                />
+              </div>
+            </div>
+
+            {atsAnalysis.keywordMatchRate !== null && (
+              <p className="text-xs text-gray-600 dark:text-gray-300 mb-3">
+                Correspondance mots-clés: <strong>{atsAnalysis.keywordMatchRate}%</strong> ({atsAnalysis.matchedKeywords.length}/{atsAnalysis.targetKeywords.length})
+              </p>
+            )}
+
+            {atsAnalysis.targetKeywords.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Mots-clés détectés</p>
+                <div className="flex flex-wrap gap-1">
+                  {atsAnalysis.matchedKeywords.slice(0, 8).map((kw) => (
+                    <span key={kw} className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/15 text-green-700 dark:text-green-300 border border-green-500/30">
+                      {kw}
+                    </span>
+                  ))}
+                  {atsAnalysis.matchedKeywords.length === 0 && (
+                    <span className="text-[10px] text-gray-500 dark:text-gray-400">Aucun mot-clé détecté pour l’instant.</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Actions prioritaires</p>
+              <ul className="space-y-1">
+                {atsAnalysis.recommendations.slice(0, 3).map((item, index) => (
+                  <li key={index} className="text-xs text-gray-600 dark:text-gray-400">
+                    - {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
 
         {/* Aperçu */}
