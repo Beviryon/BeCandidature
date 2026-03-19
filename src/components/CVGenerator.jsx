@@ -6,11 +6,13 @@ import {
   Star, ArrowRight, Image as ImageIcon
 } from 'lucide-react'
 import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 import { useToast } from '../contexts/ToastContext'
 
 function CVGenerator() {
   const { success, error: showError } = useToast()
   const previewRef = useRef(null)
+  const pdfExportRef = useRef(null)
   const [formData, setFormData] = useState({
     nom: '',
     prenom: '',
@@ -35,6 +37,7 @@ function CVGenerator() {
   const [downloadCount, setDownloadCount] = useState(0)
   const [activeSection, setActiveSection] = useState('personal')
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+  const isAtsTemplate = selectedTemplate.startsWith('ats-')
 
   useEffect(() => {
     const savedCV = localStorage.getItem('cv_data')
@@ -80,16 +83,6 @@ function CVGenerator() {
     success('CV sauvegardé avec succès !')
   }
 
-  const sanitizePdfText = (value = '') => {
-    // jsPDF (police standard) supporte mal certains caractères (notamment emojis)
-    return String(value)
-      .normalize('NFKD')
-      .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
-      .replace(/[\u200B-\u200D\uFEFF]/g, '')
-      .replace(/[^\x20-\x7E\n]/g, ' ')
-      .replace(/[ ]{2,}/g, ' ')
-  }
-
   const buildSafeFilename = () => {
     const rawName = `CV_${formData.prenom || ''}_${formData.nom || 'Candidat'}`
     const sanitized = rawName
@@ -102,6 +95,130 @@ function CVGenerator() {
     return `${sanitized || 'CV_Candidat'}.pdf`
   }
 
+  const sanitizeAtsText = (value = '') => {
+    return String(value)
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\x20-\x7E\n]/g, ' ')
+      .replace(/[ ]{2,}/g, ' ')
+      .trim()
+  }
+
+  const generateAtsTextPdf = () => {
+    const doc = new jsPDF('p', 'mm', 'a4')
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const marginX = 15
+    const maxWidth = pageWidth - (marginX * 2)
+    let y = 18
+
+    const ensureSpace = (needed = 8) => {
+      if (y + needed > pageHeight - 12) {
+        doc.addPage()
+        y = 18
+      }
+    }
+
+    const writeLines = (text, options = {}) => {
+      const {
+        size = 10,
+        style = 'normal',
+        indent = marginX,
+        lineHeight = 5
+      } = options
+
+      const safeText = sanitizeAtsText(text)
+      if (!safeText) return
+
+      doc.setFont('helvetica', style)
+      doc.setFontSize(size)
+      const lines = doc.splitTextToSize(safeText, pageWidth - indent - marginX)
+      lines.forEach((line) => {
+        ensureSpace(lineHeight)
+        doc.text(line, indent, y)
+        y += lineHeight
+      })
+    }
+
+    const writeSectionTitle = (title) => {
+      ensureSpace(10)
+      y += 2
+      doc.setDrawColor(40, 40, 40)
+      doc.setLineWidth(0.3)
+      doc.line(marginX, y, pageWidth - marginX, y)
+      y += 5
+      writeLines(title, { size: 11, style: 'bold', lineHeight: 6 })
+      y += 1
+    }
+
+    const fullName = `${formData.prenom || ''} ${formData.nom || ''}`.trim()
+    writeLines(fullName || 'Nom Prenom', { size: 19, style: 'bold', lineHeight: 8 })
+    writeLines(formData.titre || 'Titre professionnel', { size: 12, lineHeight: 6 })
+
+    const contactLine = [
+      formData.email,
+      formData.telephone,
+      formData.adresse
+    ].filter(Boolean).join(' | ')
+    writeLines(contactLine, { size: 10 })
+    if (formData.linkedin) writeLines(`LinkedIn: ${formData.linkedin}`, { size: 10 })
+    if (formData.portfolio) writeLines(`Portfolio: ${formData.portfolio}`, { size: 10 })
+
+    if (formData.resume) {
+      writeSectionTitle('PROFIL')
+      writeLines(formData.resume, { size: 10, lineHeight: 5 })
+    }
+
+    const experiences = formData.experiences.filter((exp) => exp.entreprise || exp.poste || exp.description)
+    if (experiences.length > 0) {
+      writeSectionTitle('EXPERIENCE PROFESSIONNELLE')
+      experiences.forEach((exp) => {
+        writeLines(`${exp.poste || 'Poste'} - ${exp.entreprise || 'Entreprise'}`, { size: 10.5, style: 'bold' })
+        writeLines(`${exp.debut || ''} - ${exp.fin || 'Present'}${exp.ville ? ` | ${exp.ville}` : ''}`, { size: 9.5 })
+        if (exp.description) writeLines(exp.description, { size: 9.8, indent: marginX + 3 })
+        y += 2
+      })
+    }
+
+    const formations = formData.formations.filter((form) => form.ecole || form.diplome || form.description)
+    if (formations.length > 0) {
+      writeSectionTitle('FORMATION')
+      formations.forEach((form) => {
+        writeLines(`${form.diplome || 'Diplome'} - ${form.ecole || 'Etablissement'}`, { size: 10.5, style: 'bold' })
+        if (form.annee || form.ville) {
+          writeLines(`${form.annee || ''}${form.ville ? ` | ${form.ville}` : ''}`, { size: 9.5 })
+        }
+        if (form.description) writeLines(form.description, { size: 9.8, indent: marginX + 3 })
+        y += 2
+      })
+    }
+
+    if (formData.competences) {
+      writeSectionTitle('COMPETENCES')
+      writeLines(formData.competences, { size: 10, lineHeight: 5 })
+    }
+
+    if (formData.langues) {
+      writeSectionTitle('LANGUES')
+      writeLines(formData.langues, { size: 10, lineHeight: 5 })
+    }
+
+    if (formData.loisirs) {
+      writeSectionTitle('CENTRES D INTERET')
+      writeLines(formData.loisirs, { size: 10, lineHeight: 5 })
+    }
+
+    const certifications = formData.certifications.filter((cert) => cert.nom || cert.organisme)
+    if (certifications.length > 0) {
+      writeSectionTitle('CERTIFICATIONS')
+      certifications.forEach((cert) => {
+        writeLines(`${cert.nom || 'Certification'} - ${cert.organisme || ''} ${cert.date ? `(${cert.date})` : ''}`, { size: 10 })
+      })
+    }
+
+    return doc
+  }
+
   const generatePDF = async () => {
     if (!formData.nom || !formData.prenom) {
       showError('Veuillez remplir au minimum le prénom et le nom.')
@@ -110,168 +227,58 @@ function CVGenerator() {
 
     try {
       setIsGeneratingPdf(true)
-      // Utiliser html2canvas si disponible, sinon fallback sur jsPDF basique
+
+      if (isAtsTemplate) {
+        const doc = generateAtsTextPdf()
+        const fileName = buildSafeFilename()
+        doc.save(fileName)
+
+        const newCount = downloadCount + 1
+        setDownloadCount(newCount)
+        localStorage.setItem('cv_download_count', newCount.toString())
+        success('CV ATS exporté en PDF texte avec succès !')
+        return
+      }
+
+      if (document?.fonts?.ready) {
+        await document.fonts.ready
+      }
+
+      const targetElement = pdfExportRef.current || previewRef.current
+      if (!targetElement) {
+        throw new Error('Aperçu introuvable pour l’export PDF')
+      }
+
+      const canvas = await html2canvas(targetElement, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: targetElement.scrollWidth,
+        windowHeight: targetElement.scrollHeight
+      })
+
+      const imgData = canvas.toDataURL('image/png')
       const doc = new jsPDF('p', 'mm', 'a4')
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
-      let y = 15
+      const imgProps = doc.getImageProperties(imgData)
+      const imgWidth = pageWidth
+      const imgHeight = (imgProps.height * imgWidth) / imgProps.width
 
-      // Template Moderne
-      if (selectedTemplate === 'moderne') {
-        // Header avec couleur
-        doc.setFillColor(139, 92, 246) // Purple
-        doc.rect(0, 0, pageWidth, 40, 'F')
-        
-        doc.setTextColor(255, 255, 255)
-        doc.setFontSize(28)
-        doc.setFont('helvetica', 'bold')
-        doc.text(sanitizePdfText(`${formData.prenom} ${formData.nom}`), 20, 25)
-        
-        doc.setFontSize(14)
-        doc.setFont('helvetica', 'normal')
-        doc.text(sanitizePdfText(formData.titre || ''), 20, 32)
-        
-        y = 50
-        
-        // Contact info
-        doc.setTextColor(0, 0, 0)
-        doc.setFontSize(10)
-        const contactInfo = []
-        if (formData.email) contactInfo.push(`Email: ${formData.email}`)
-        if (formData.telephone) contactInfo.push(`Tel: ${formData.telephone}`)
-        if (formData.adresse) contactInfo.push(`Adresse: ${formData.adresse}`)
-        if (formData.linkedin) contactInfo.push(`LinkedIn: ${formData.linkedin}`)
-        
-        contactInfo.forEach((info) => {
-          doc.text(sanitizePdfText(info), 20, y)
-          y += 5
-        })
+      let heightLeft = imgHeight
+      let position = 0
 
-        y += 6
-        
-        // Profil
-        if (formData.resume) {
-          doc.setFillColor(139, 92, 246)
-          doc.rect(20, y, pageWidth - 40, 8, 'F')
-          doc.setTextColor(255, 255, 255)
-          doc.setFontSize(12)
-          doc.setFont('helvetica', 'bold')
-          doc.text('PROFIL', 22, y + 6)
-          
-          y += 12
-          doc.setTextColor(0, 0, 0)
-          doc.setFontSize(10)
-          doc.setFont('helvetica', 'normal')
-          const resumeLines = doc.splitTextToSize(sanitizePdfText(formData.resume), pageWidth - 40)
-          doc.text(resumeLines, 20, y)
-          y += resumeLines.length * 5 + 5
-        }
-        
-        // Expériences
-        if (formData.experiences.some(exp => exp.entreprise)) {
-          if (y > pageHeight - 40) {
-            doc.addPage()
-            y = 20
-          }
-          
-          doc.setFillColor(139, 92, 246)
-          doc.rect(20, y, pageWidth - 40, 8, 'F')
-          doc.setTextColor(255, 255, 255)
-          doc.setFontSize(12)
-          doc.setFont('helvetica', 'bold')
-          doc.text('EXPÉRIENCES PROFESSIONNELLES', 22, y + 6)
-          y += 12
-          
-          formData.experiences.forEach(exp => {
-            if (exp.entreprise) {
-              if (y > pageHeight - 30) {
-                doc.addPage()
-                y = 20
-              }
-              
-              doc.setTextColor(0, 0, 0)
-              doc.setFontSize(11)
-              doc.setFont('helvetica', 'bold')
-              doc.text(sanitizePdfText(`${exp.poste}`), 20, y)
-              doc.setFont('helvetica', 'normal')
-              doc.setFontSize(10)
-              doc.text(sanitizePdfText(`${exp.entreprise}`), 20, y + 6)
-              doc.setFontSize(9)
-              doc.setTextColor(100, 100, 100)
-              doc.text(sanitizePdfText(`${exp.debut} - ${exp.fin}`), 20, y + 11)
-              
-              if (exp.description) {
-                y += 16
-                doc.setFontSize(9)
-                doc.setTextColor(0, 0, 0)
-                const descLines = doc.splitTextToSize(sanitizePdfText(exp.description), pageWidth - 40)
-                doc.text(descLines, 20, y)
-                y += descLines.length * 4
-              }
-              y += 8
-            }
-          })
-        }
-        
-        // Formations
-        if (formData.formations.some(form => form.ecole)) {
-          if (y > pageHeight - 40) {
-            doc.addPage()
-            y = 20
-          }
-          
-          doc.setFillColor(139, 92, 246)
-          doc.rect(20, y, pageWidth - 40, 8, 'F')
-          doc.setTextColor(255, 255, 255)
-          doc.setFontSize(12)
-          doc.setFont('helvetica', 'bold')
-          doc.text('FORMATION', 22, y + 6)
-          y += 12
-          
-          formData.formations.forEach(form => {
-            if (form.ecole) {
-              if (y > pageHeight - 30) {
-                doc.addPage()
-                y = 20
-              }
-              
-              doc.setTextColor(0, 0, 0)
-              doc.setFontSize(11)
-              doc.setFont('helvetica', 'bold')
-              doc.text(sanitizePdfText(`${form.diplome}`), 20, y)
-              doc.setFont('helvetica', 'normal')
-              doc.setFontSize(10)
-              doc.text(sanitizePdfText(`${form.ecole}`), 20, y + 6)
-              doc.setFontSize(9)
-              doc.setTextColor(100, 100, 100)
-              doc.text(sanitizePdfText(`${form.annee}`), 20, y + 11)
-              y += 18
-            }
-          })
-        }
-        
-        // Compétences
-        if (formData.competences) {
-          if (y > pageHeight - 40) {
-            doc.addPage()
-            y = 20
-          }
-          
-          doc.setFillColor(139, 92, 246)
-          doc.rect(20, y, pageWidth - 40, 8, 'F')
-          doc.setTextColor(255, 255, 255)
-          doc.setFontSize(12)
-          doc.setFont('helvetica', 'bold')
-          doc.text('COMPÉTENCES', 22, y + 6)
-          y += 12
-          
-          doc.setTextColor(0, 0, 0)
-          doc.setFontSize(10)
-          doc.setFont('helvetica', 'normal')
-          const compLines = doc.splitTextToSize(sanitizePdfText(formData.competences), pageWidth - 40)
-          doc.text(compLines, 20, y)
-        }
+      doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        doc.addPage()
+        doc.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight
       }
+
       const fileName = buildSafeFilename()
       try {
         doc.save(fileName)
@@ -364,6 +371,22 @@ function CVGenerator() {
       gradient: 'from-blue-500 to-cyan-500',
       preview: 'bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/20 dark:to-cyan-900/20'
     },
+    {
+      id: 'ats-simple',
+      name: 'ATS Simple',
+      description: 'Monocolonne, lisible ATS, sans fioritures',
+      icon: FileText,
+      gradient: 'from-emerald-500 to-teal-500',
+      preview: 'bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/20 dark:to-teal-900/20'
+    },
+    {
+      id: 'ats-chrono',
+      name: 'ATS Chrono',
+      description: 'Format chronologique optimisé ATS',
+      icon: CheckCircle,
+      gradient: 'from-lime-500 to-green-500',
+      preview: 'bg-gradient-to-br from-lime-100 to-green-100 dark:from-lime-900/20 dark:to-green-900/20'
+    },
     { 
       id: 'creatif', 
       name: 'Créatif', 
@@ -383,6 +406,84 @@ function CVGenerator() {
   ]
 
   const renderCVPreview = () => {
+    if (selectedTemplate === 'ats-simple' || selectedTemplate === 'ats-chrono') {
+      const isChrono = selectedTemplate === 'ats-chrono'
+      return (
+        <div className="bg-white text-black shadow-2xl" style={{ width: '210mm', minHeight: '297mm', padding: '20mm' }}>
+          <div className="mb-5">
+            <h1 className="text-3xl font-bold tracking-tight mb-1">
+              {formData.prenom || 'Prénom'} {formData.nom || 'Nom'}
+            </h1>
+            <p className="text-lg">{formData.titre || 'Titre professionnel'}</p>
+            <p className="text-sm mt-2">
+              {[formData.email, formData.telephone, formData.adresse].filter(Boolean).join(' | ')}
+            </p>
+            {(formData.linkedin || formData.portfolio) && (
+              <p className="text-sm">
+                {[formData.linkedin, formData.portfolio].filter(Boolean).join(' | ')}
+              </p>
+            )}
+          </div>
+
+          {formData.resume && (
+            <section className="mb-4">
+              <h2 className="text-base font-bold uppercase border-b border-black pb-1 mb-2">Profil</h2>
+              <p className="text-sm whitespace-pre-line leading-relaxed">{formData.resume}</p>
+            </section>
+          )}
+
+          {formData.experiences.some(exp => exp.entreprise) && (
+            <section className="mb-4">
+              <h2 className="text-base font-bold uppercase border-b border-black pb-1 mb-2">Expérience professionnelle</h2>
+              {formData.experiences.map((exp, idx) => (
+                exp.entreprise && (
+                  <div key={idx} className="mb-3">
+                    <div className={`flex ${isChrono ? 'justify-between' : 'flex-col'} items-start`}>
+                      <div>
+                        <h3 className="font-bold text-sm">{exp.poste || 'Poste'} - {exp.entreprise}</h3>
+                        {exp.ville && <p className="text-xs">{exp.ville}</p>}
+                      </div>
+                      <span className="text-xs">{exp.debut || 'Début'} - {exp.fin || 'Aujourd’hui'}</span>
+                    </div>
+                    {exp.description && <p className="text-sm mt-1 whitespace-pre-line">{exp.description}</p>}
+                  </div>
+                )
+              ))}
+            </section>
+          )}
+
+          {formData.formations.some(form => form.ecole) && (
+            <section className="mb-4">
+              <h2 className="text-base font-bold uppercase border-b border-black pb-1 mb-2">Formation</h2>
+              {formData.formations.map((form, idx) => (
+                form.ecole && (
+                  <div key={idx} className="mb-2">
+                    <h3 className="font-bold text-sm">{form.diplome || 'Diplôme'} - {form.ecole}</h3>
+                    <p className="text-xs">{[form.annee, form.ville].filter(Boolean).join(' | ')}</p>
+                    {form.description && <p className="text-sm mt-1 whitespace-pre-line">{form.description}</p>}
+                  </div>
+                )
+              ))}
+            </section>
+          )}
+
+          {formData.competences && (
+            <section className="mb-4">
+              <h2 className="text-base font-bold uppercase border-b border-black pb-1 mb-2">Compétences</h2>
+              <p className="text-sm whitespace-pre-line">{formData.competences}</p>
+            </section>
+          )}
+
+          {formData.langues && (
+            <section className="mb-4">
+              <h2 className="text-base font-bold uppercase border-b border-black pb-1 mb-2">Langues</h2>
+              <p className="text-sm whitespace-pre-line">{formData.langues}</p>
+            </section>
+          )}
+        </div>
+      )
+    }
+
     // Template Moderne
     if (selectedTemplate === 'moderne') {
       return (
@@ -755,6 +856,11 @@ function CVGenerator() {
                   </div>
                   <h4 className="font-bold text-gray-800 dark:text-white mb-1">{template.name}</h4>
                   <p className="text-xs text-gray-600 dark:text-gray-400">{template.description}</p>
+                  {template.id.startsWith('ats-') && (
+                    <span className="inline-flex mt-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-green-500/15 text-green-700 dark:text-green-300 border border-green-500/30">
+                      ATS
+                    </span>
+                  )}
                   {isSelected && (
                     <div className="mt-2 flex items-center space-x-1 text-xs text-purple-600 dark:text-purple-400">
                       <CheckCircle className="w-3 h-3" />
@@ -886,9 +992,14 @@ function CVGenerator() {
             </button>
             <button onClick={generatePDF} disabled={!formData.nom || !formData.prenom || isGeneratingPdf} className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed">
               <Download className="w-4 h-4" />
-              <span>{isGeneratingPdf ? 'Génération...' : 'Télécharger PDF'}</span>
+              <span>{isGeneratingPdf ? 'Génération...' : isAtsTemplate ? 'Télécharger PDF ATS' : 'Télécharger PDF'}</span>
             </button>
           </div>
+          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            {isAtsTemplate
+              ? 'Mode ATS actif: export en PDF texte lisible par les ATS.'
+              : 'Pour les candidatures en ligne, privilégie un template ATS (badge vert).'}
+          </p>
         </div>
 
         {/* Aperçu */}
@@ -913,6 +1024,22 @@ function CVGenerator() {
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Rendu hors écran pour garantir un export PDF identique à l'aperçu */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          left: '-100000px',
+          top: '0',
+          pointerEvents: 'none',
+          opacity: 0
+        }}
+      >
+        <div ref={pdfExportRef}>
+          {renderCVPreview()}
         </div>
       </div>
 
