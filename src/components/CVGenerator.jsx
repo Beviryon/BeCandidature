@@ -418,6 +418,26 @@ function CVGenerator() {
     }
   }, [formData])
 
+  const completionStats = useMemo(() => {
+    const checkpoints = [
+      Boolean(formData.prenom?.trim()),
+      Boolean(formData.nom?.trim()),
+      Boolean(formData.titre?.trim()),
+      Boolean(formData.email?.trim()),
+      Boolean(formData.telephone?.trim()),
+      Boolean(formData.resume?.trim()),
+      formData.experiences.some((exp) => exp.entreprise || exp.poste || exp.description),
+      formData.formations.some((form) => form.ecole || form.diplome),
+      Boolean(formData.competences?.trim())
+    ]
+
+    const completed = checkpoints.filter(Boolean).length
+    const total = checkpoints.length
+    const percentage = Math.round((completed / total) * 100)
+
+    return { completed, total, percentage }
+  }, [formData])
+
   const insertMissingKeywordsInSkills = () => {
     const missing = atsAnalysis.missingKeywords.slice(0, 12)
     if (missing.length === 0) {
