@@ -1,11 +1,18 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { 
   Send, Bot, User, Copy, Sparkles, Mail, 
   CheckCircle, Wand2, Brain, TrendingUp, Lightbulb,
-  Loader2, Stars, Rocket, FileText, ExternalLink, ChevronDown, ChevronUp
+  Loader2, Stars, Rocket, FileText, ExternalLink, ChevronDown, ChevronUp, Target
 } from 'lucide-react'
 import { generateAIResponse } from '../services/openaiService'
 import { useToast } from '../contexts/ToastContext'
+
+const JD_TECH_KEYWORDS = [
+  'react', 'javascript', 'typescript', 'node.js', 'node', 'python', 'sql', 'nosql',
+  'java', 'spring', 'docker', 'kubernetes', 'git', 'ci/cd', 'aws', 'azure', 'gcp',
+  'api', 'rest', 'graphql', 'agile', 'scrum', 'jira', 'figma', 'power bi', 'excel',
+  'communication', 'autonomie', 'analyse', 'gestion de projet', 'leadership'
+]
 
 function AssistantIA() {
   const { success } = useToast()
@@ -21,8 +28,48 @@ function AssistantIA() {
   const [copiedIndex, setCopiedIndex] = useState(null)
   const [selectedMode, setSelectedMode] = useState(null)
   const [isQuickModesOpen, setIsQuickModesOpen] = useState(false)
+  const [jdText, setJdText] = useState('')
+  const [profileSkills, setProfileSkills] = useState('')
+  const [targetRole, setTargetRole] = useState('')
   const apiEnabled = Boolean((import.meta.env.VITE_AI_FUNCTION_URL || '').trim())
   const showTechnicalInfo = import.meta.env.DEV
+
+  const jdAnalysis = useMemo(() => {
+    const normalizedJd = (jdText || '').toLowerCase()
+    const normalizedSkills = (profileSkills || '').toLowerCase()
+    if (!normalizedJd.trim()) {
+      return {
+        keywords: [],
+        matched: [],
+        missing: [],
+        score: 0,
+        actions: []
+      }
+    }
+
+    const extracted = JD_TECH_KEYWORDS.filter((kw) => normalizedJd.includes(kw))
+    const uniqueKeywords = Array.from(new Set(extracted)).slice(0, 20)
+    const matched = uniqueKeywords.filter((kw) => normalizedSkills.includes(kw))
+    const missing = uniqueKeywords.filter((kw) => !normalizedSkills.includes(kw))
+    const score = uniqueKeywords.length > 0 ? Math.round((matched.length / uniqueKeywords.length) * 100) : 0
+
+    const actions = []
+    if (missing.length > 0) {
+      actions.push(`Ajoutez ces mots-clés dans CV/LM: ${missing.slice(0, 6).join(', ')}`)
+    }
+    if (targetRole.trim()) {
+      actions.push(`Adaptez votre pitch à "${targetRole}" avec 2 réalisations mesurables.`)
+    }
+    actions.push('Préparez 1 exemple STAR par compétence clé demandée.')
+
+    return {
+      keywords: uniqueKeywords,
+      matched,
+      missing,
+      score,
+      actions
+    }
+  }, [jdText, profileSkills, targetRole])
 
   const assistantModes = [
     {
@@ -421,6 +468,77 @@ function AssistantIA() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Booster candidature */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="bg-white/80 dark:bg-black/40 backdrop-blur-xl rounded-2xl border border-blue-500/20 p-5 shadow-lg">
+          <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-3 flex items-center gap-2">
+            <Target className="w-5 h-5 text-blue-500" />
+            Analyse d&apos;offre + match profil
+          </h3>
+          <div className="space-y-3">
+            <textarea
+              value={jdText}
+              onChange={(e) => setJdText(e.target.value)}
+              rows={5}
+              placeholder="Collez ici la description de poste (JD)..."
+              className="w-full px-3 py-2 rounded-xl border border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none"
+            />
+            <input
+              type="text"
+              value={profileSkills}
+              onChange={(e) => setProfileSkills(e.target.value)}
+              placeholder="Vos compétences (séparées par virgule)"
+              className="w-full px-3 py-2 rounded-xl border border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            />
+            <input
+              type="text"
+              value={targetRole}
+              onChange={(e) => setTargetRole(e.target.value)}
+              placeholder="Poste ciblé (optionnel)"
+              className="w-full px-3 py-2 rounded-xl border border-white/10 bg-white/60 dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            />
+          </div>
+
+          <div className="mt-4 p-3 rounded-xl bg-white/60 dark:bg-white/5 border border-white/10">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Score d&apos;adéquation</span>
+              <span className={`text-sm font-bold ${
+                jdAnalysis.score >= 70 ? 'text-green-600 dark:text-green-300' :
+                  jdAnalysis.score >= 45 ? 'text-orange-600 dark:text-orange-300' :
+                    'text-red-600 dark:text-red-300'
+              }`}>
+                {jdAnalysis.score}%
+              </span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden mb-3">
+              <div
+                className={`h-full ${
+                  jdAnalysis.score >= 70 ? 'bg-green-500' : jdAnalysis.score >= 45 ? 'bg-orange-500' : 'bg-red-500'
+                }`}
+                style={{ width: `${jdAnalysis.score}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+              Mots-clés ATS détectés: {jdAnalysis.keywords.length}
+            </p>
+            <p className="text-xs text-gray-700 dark:text-gray-300 mb-1">
+              <strong>Match:</strong> {jdAnalysis.matched.slice(0, 8).join(', ') || 'Aucun pour le moment'}
+            </p>
+            <p className="text-xs text-gray-700 dark:text-gray-300">
+              <strong>À intégrer:</strong> {jdAnalysis.missing.slice(0, 8).join(', ') || 'RAS'}
+            </p>
+            {jdAnalysis.actions.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {jdAnalysis.actions.slice(0, 3).map((action) => (
+                  <li key={action} className="text-xs text-blue-700 dark:text-blue-300">• {action}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
       </div>
 
       {/* Info technique (dev uniquement) */}

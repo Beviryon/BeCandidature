@@ -18,6 +18,7 @@ import Dashboard from './components/Dashboard'
 import Calendrier from './components/Calendrier'
 import CVGenerator from './components/CVGenerator'
 import AssistantIA from './components/AssistantIA'
+import InterviewSimulator from './components/InterviewSimulator'
 import EmailImport from './components/EmailImport'
 import ExcelImport from './components/ExcelImport'
 import JobScanner from './components/JobScanner'
@@ -176,6 +177,7 @@ function App() {
               <Route path="/calendrier/integration" element={<CalendarIntegration />} />
               <Route path="/cv" element={<CVGenerator />} />
               <Route path="/assistant" element={<AssistantIA />} />
+              <Route path="/simulateur" element={<InterviewSimulator />} />
               <Route path="/import-email" element={<EmailImport />} />
               <Route path="/import-excel" element={<ExcelImport />} />
               <Route path="/scan-offres" element={<JobScanner />} />

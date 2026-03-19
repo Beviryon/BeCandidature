@@ -52,7 +52,8 @@ function extractEntreprise(rawText) {
     /envers\s+([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{2,80})\s+en\s+postulant/gi,
     /au\s+sein\s+de\s+([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{2,80})/gi,
     /au\s+sein\s+de\s+(?:la|le|l['’])?\s*(commune|mairie|ville|collectivite)\s+de\s+([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{2,80})/gi,
-    /(?:commune|mairie|ville|collectivite)\s+de\s+([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{2,80})/gi
+    /(?:commune|mairie|ville|collectivite)\s+de\s+([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{2,80})/gi,
+    /^([A-Z][A-Za-zÀ-ÖØ-öø-ÿ0-9&.\- ]{1,60})\s*-\s*\d{5}\s+[A-Za-zÀ-ÖØ-öø-ÿ\-\s]{2,60}$/gim
   ]
 
   patterns.forEach((pattern) => {
@@ -88,6 +89,7 @@ function extractPoste(rawText) {
   const patterns = [
     /(?:poste|position|role|intitule)\s*(?:de|d'|of)?\s*:?\s*([^\n.]{4,120})/gi,
     /candidature\s+(?:pour|for)\s+(?:le poste|the position)?\s*(?:de|of)?\s*:?\s*([^\n.]{4,120})/gi,
+    /candidature\s+envoy[éee]\s*\n+\s*([^\n]{6,140})/gi,
     /offre\s*[«"“]?([^»"\n]{6,140})[»"”]?/gi,
     /postul(?:é|e|er|ant)\s+[aà]\s+l['’]offre\s*[«"“]?([^»"\n]{6,140})[»"”]?/gi,
     /(?:developpeur|développeur|developer|ingenieur|ingénieur|consultant|analyste|data scientist|product manager|devops)\s+[^\n.]{0,50}/gi
@@ -139,7 +141,7 @@ function detectStatus(rawText) {
 
   const refusalSignals = /(refus|regret|unfortunately|malheureusement|ne pouvons donner suite|non retenu|not selected|declined|rejected|n['’]a pas ete retenu[e]?)/i
   const interviewSignals = /(entretien|interview|rendez[- ]vous|call|visio|meeting|echange|échange)/i
-  const pendingSignals = /(sera examinee|sera examinée|dans les meilleurs delais|dans les meilleurs délais|aucune reponse|aucune réponse|votre candidature sera examinee|votre candidature sera examinée)/i
+  const pendingSignals = /(sera examinee|sera examinée|dans les meilleurs delais|dans les meilleurs délais|aucune reponse|aucune réponse|votre candidature sera examinee|votre candidature sera examinée|candidature envoyee|bonne chance|prochaines etapes|peut vous contacter)/i
   const conditionalRefusalSignals = /(si\s+dans\s+un\s+delai|si\s+dans\s+un\s+délai|nous\s+vous\s+invitons\s+a\s+considerer|considere[rz]\s+que)/i
 
   // Cas typique d'accuse de reception: mention "n'a pas ete retenue" mais au conditionnel/futur

@@ -1,5 +1,5 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
-import { LogOut, Plus, List, BarChart3, Calendar, Bot, Search, Sparkles, FileText, Mail, MessageSquare, Linkedin, Menu, X, Moon, Sun, Shield, FileSpreadsheet, Settings } from 'lucide-react'
+import { LogOut, Plus, List, BarChart3, Calendar, Bot, Search, Sparkles, FileText, Mail, MessageSquare, Linkedin, Menu, X, Moon, Sun, Shield, FileSpreadsheet, Mic } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '../firebaseConfig'
@@ -107,6 +107,17 @@ function Layout() {
               >
                 <Bot className="w-4 h-4" />
                 <span>Assistant</span>
+              </Link>
+              <Link
+                to="/simulateur"
+                className={`flex items-center space-x-2 px-3 py-2 rounded-xl font-medium text-sm transition-all duration-300 ${
+                  isActive('/simulateur')
+                    ? 'bg-gradient-to-r from-rose-500/20 to-pink-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30'
+                    : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+                }`}
+              >
+                <Mic className="w-4 h-4" />
+                <span>Simulateur</span>
               </Link>
               <Link
                 to="/scan-offres"
@@ -334,6 +345,18 @@ function Layout() {
             >
               <Bot className="w-4 h-4 mb-1" />
               <span>Assistant</span>
+            </Link>
+            <Link
+              to="/simulateur"
+              onClick={() => setIsMobileNavOpen(false)}
+              className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
+                isActive('/simulateur')
+                  ? 'bg-gradient-to-r from-rose-500/20 to-pink-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30'
+                  : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+              }`}
+            >
+              <Mic className="w-4 h-4 mb-1" />
+              <span>Simulateur</span>
             </Link>
             <Link
               to="/scan-offres"

@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
 import { 
-  Copy, Check, Mail, MessageSquare, Linkedin, Plus, X, Edit2, 
-  Send, RefreshCw, Heart, Users, Briefcase, Sparkles, Filter,
-  Star, ArrowRight, Search, FileText, CheckCircle
+  Copy, Check, Mail, MessageSquare, Linkedin, Plus, X,
+  RefreshCw, Heart, Users, Briefcase, Sparkles, Filter,
+  Search, FileText, CheckCircle, ChevronDown, ChevronUp, Wand2, Send
 } from 'lucide-react'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmDialog from './ConfirmDialog'
@@ -308,6 +308,16 @@ function Templates() {
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null)
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false)
+  const [personalization, setPersonalization] = useState({
+    contact: '',
+    entreprise: '',
+    poste: '',
+    date: new Date().toISOString().split('T')[0],
+    votreNom: '',
+    competences: '',
+    domaine: ''
+  })
   const [newTemplate, setNewTemplate] = useState({ 
     name: '', 
     category: 'candidature-spontanee',
@@ -347,6 +357,64 @@ function Templates() {
     setCopiedId(id)
     success('Template copié dans le presse-papiers !')
     setTimeout(() => setCopiedId(null), 2000)
+  }
+
+  const personalizeTemplateContent = (content) => {
+    const replacements = {
+      '[Contact]': personalization.contact || '[Contact]',
+      '[Entreprise]': personalization.entreprise || '[Entreprise]',
+      '[Poste]': personalization.poste || '[Poste]',
+      '[Date]': personalization.date || '[Date]',
+      '[Votre Nom]': personalization.votreNom || '[Votre Nom]',
+      '[Compétences]': personalization.competences || '[Compétences]',
+      '[Domaine]': personalization.domaine || '[Domaine]'
+    }
+
+    return Object.entries(replacements).reduce((acc, [key, value]) => {
+      return acc.replaceAll(key, value)
+    }, content)
+  }
+
+  const parseSubjectAndBody = (content) => {
+    const lines = content.split('\n')
+    const firstLine = lines[0] || ''
+    if (/^objet\s*:/i.test(firstLine)) {
+      const subject = firstLine.replace(/^objet\s*:/i, '').trim()
+      const body = lines.slice(1).join('\n').trim()
+      return { subject, body }
+    }
+    return { subject: `Message - ${personalization.poste || 'Candidature'}`, body: content }
+  }
+
+  const copyAndOpenMail = (content, id) => {
+    const personalized = personalizeTemplateContent(content)
+    const { subject, body } = parseSubjectAndBody(personalized)
+
+    navigator.clipboard.writeText(personalized)
+    setCopiedId(id)
+    success('Message personnalisé copié et email ouvert')
+    setTimeout(() => setCopiedId(null), 2000)
+
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+  }
+
+  const oneClickFollowUp = () => {
+    if (!personalization.entreprise || !personalization.poste) {
+      showError('Renseignez au moins entreprise et poste pour générer la relance')
+      return
+    }
+
+    const relanceTemplate = templates.find((t) => t.category === 'relance') || templates.find((t) => t.id === 'relance-1')
+    if (!relanceTemplate) {
+      showError('Aucun template de relance disponible')
+      return
+    }
+
+    const personalized = personalizeTemplateContent(relanceTemplate.content)
+    const { subject, body } = parseSubjectAndBody(personalized)
+    navigator.clipboard.writeText(personalized)
+    success('Relance générée en 1 clic')
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
   }
 
   const deleteTemplate = (id) => {
@@ -409,13 +477,19 @@ function Templates() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-4xl font-bold gradient-text mb-2 flex items-center space-x-3">
+          <h2 className="text-3xl md:text-4xl font-bold gradient-text mb-2 flex items-center space-x-3">
             <Sparkles className="w-8 h-8 text-purple-400" />
             <span>Templates de Messages Professionnels</span>
           </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            Messages pré-rédigés pour toutes vos communications professionnelles
-          </p>
+          <p className="text-gray-600 dark:text-gray-400">Bibliothèque claire et prête à copier.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="text-xs px-2 py-1 rounded-full bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30">
+              Total: {templates.length}
+            </span>
+            <span className="text-xs px-2 py-1 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+              Affichés: {filteredTemplates.length}
+            </span>
+          </div>
         </div>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
@@ -428,8 +502,23 @@ function Templates() {
 
       {/* Filtres et recherche */}
       <div className="bg-white/80 dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/20 shadow-lg">
-        {/* Recherche */}
-        <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => setIsFiltersOpen((prev) => !prev)}
+          className="w-full flex items-center justify-between"
+        >
+          <div className="flex items-center space-x-2">
+            <Filter className="w-5 h-5 text-purple-400" />
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Recherche & Catégories</span>
+          </div>
+          {isFiltersOpen ? (
+            <ChevronUp className="w-4 h-4 text-gray-500 md:hidden" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-gray-500 md:hidden" />
+          )}
+        </button>
+
+        <div className={`mt-4 ${isFiltersOpen ? 'block' : 'hidden'} md:block space-y-4`}>
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
@@ -440,15 +529,8 @@ function Templates() {
               className="w-full pl-12 pr-4 py-3 rounded-xl border border-white/10 bg-white/5 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
             />
           </div>
-        </div>
 
-        {/* Catégories */}
-        <div>
-          <div className="flex items-center space-x-2 mb-3">
-            <Filter className="w-5 h-5 text-purple-400" />
-            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Catégories :</span>
-          </div>
-          <div className="flex flex-wrap gap-3">
+          <div className="flex gap-2 overflow-x-auto pb-1">
             {categories.map(category => {
               const Icon = category.icon
               const isSelected = selectedCategory === category.id
@@ -456,23 +538,93 @@ function Templates() {
                 <button
                   key={category.id}
                   onClick={() => setSelectedCategory(category.id)}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-xl border-2 transition-all duration-300 ${
+                  className={`shrink-0 flex items-center space-x-2 px-3 py-2 rounded-lg border transition-all duration-300 ${
                     isSelected
-                      ? `bg-gradient-to-r ${category.color} text-white border-transparent shadow-lg scale-105`
-                      : 'bg-white/5 text-gray-600 dark:text-gray-400 border-white/10 hover:border-purple-500/30 hover:bg-white/10'
+                      ? `bg-gradient-to-r ${category.color} text-white border-transparent shadow`
+                      : 'bg-white/5 text-gray-600 dark:text-gray-400 border-white/10 hover:border-purple-500/30'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
-                  <span className="font-medium text-sm">{category.name}</span>
-                  {isSelected && selectedCategory !== 'all' && (
-                    <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">
-                      {filteredTemplates.length}
-                    </span>
-                  )}
+                  <span className="font-medium text-xs md:text-sm">{category.name}</span>
                 </button>
               )
             })}
           </div>
+
+          <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+            <span>{filteredTemplates.length} résultat(s)</span>
+            {(searchQuery || selectedCategory !== 'all') && (
+              <button
+                onClick={() => {
+                  setSearchQuery('')
+                  setSelectedCategory('all')
+                }}
+                className="hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+              >
+                Réinitialiser les filtres
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Personnalisation auto + 1 clic */}
+      <div className="bg-white/80 dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-emerald-500/20 shadow-lg">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+          <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+            <Wand2 className="w-5 h-5 text-emerald-500" />
+            Auto-personnalisation
+          </h3>
+          <button
+            onClick={oneClickFollowUp}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white font-semibold transition-all"
+          >
+            <Send className="w-4 h-4" />
+            Relance 1 clic + ouvrir mail
+          </button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <input
+            type="text"
+            value={personalization.contact}
+            onChange={(e) => setPersonalization((prev) => ({ ...prev, contact: e.target.value }))}
+            placeholder="Contact (ex: Mme Dupont)"
+            className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+          />
+          <input
+            type="text"
+            value={personalization.entreprise}
+            onChange={(e) => setPersonalization((prev) => ({ ...prev, entreprise: e.target.value }))}
+            placeholder="Entreprise"
+            className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+          />
+          <input
+            type="text"
+            value={personalization.poste}
+            onChange={(e) => setPersonalization((prev) => ({ ...prev, poste: e.target.value }))}
+            placeholder="Poste"
+            className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+          />
+          <input
+            type="date"
+            value={personalization.date}
+            onChange={(e) => setPersonalization((prev) => ({ ...prev, date: e.target.value }))}
+            className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+          />
+          <input
+            type="text"
+            value={personalization.votreNom}
+            onChange={(e) => setPersonalization((prev) => ({ ...prev, votreNom: e.target.value }))}
+            placeholder="Votre nom"
+            className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+          />
+          <input
+            type="text"
+            value={personalization.competences}
+            onChange={(e) => setPersonalization((prev) => ({ ...prev, competences: e.target.value }))}
+            placeholder="Compétences clés"
+            className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+          />
         </div>
       </div>
 
@@ -572,16 +724,6 @@ function Templates() {
         </div>
       )}
 
-      {/* Info box */}
-      <div className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 rounded-2xl p-4 border border-blue-500/30 shadow-lg">
-        <div className="flex items-start space-x-3">
-          <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-gray-700 dark:text-gray-300">
-            <strong className="text-blue-700 dark:text-blue-300">Variables disponibles :</strong> [Contact], [Entreprise], [Poste], [Date], [Date Entretien], [Compétences], [Votre Nom], [Domaine], [Expérience], [Nombre], [Raison], [Formation], [École], [Date Début], [Date Fin]
-          </div>
-        </div>
-      </div>
-
       {/* Templates grid */}
       {filteredTemplates.length === 0 ? (
         <div className="bg-white/80 dark:bg-black/40 backdrop-blur-xl rounded-2xl p-12 text-center border border-purple-500/30 shadow-lg">
@@ -603,24 +745,24 @@ function Templates() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
           {filteredTemplates.map((template) => {
             const categoryInfo = getCategoryInfo(template.category)
             const CategoryIcon = categoryInfo.icon
             return (
               <div
                 key={template.id}
-                className="group bg-white/80 dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-white/10 hover:border-purple-500/50 transition-all duration-300 shadow-lg hover:shadow-xl"
+                className="group bg-white/80 dark:bg-black/40 backdrop-blur-xl rounded-2xl p-4 md:p-5 border border-white/10 hover:border-purple-500/50 transition-all duration-300 shadow"
               >
                 {/* Header */}
-                <div className="flex items-start justify-between mb-4">
+                <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-2">
-                      <div className={`p-2 rounded-lg bg-gradient-to-br ${getTypeColor(template.type)} shadow-lg`}>
+                      <div className={`p-2 rounded-lg bg-gradient-to-br ${getTypeColor(template.type)} shadow`}>
                         {getTypeIcon(template.type)}
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-lg font-bold text-gray-800 dark:text-white group-hover:text-purple-400 dark:group-hover:text-purple-300 transition-colors">
+                        <h3 className="text-base md:text-lg font-bold text-gray-800 dark:text-white group-hover:text-purple-400 dark:group-hover:text-purple-300 transition-colors">
                           {template.name}
                         </h3>
                         {template.description && (
@@ -643,16 +785,16 @@ function Templates() {
 
                 {/* Content */}
                 <div className="mb-4">
-                  <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans bg-white/5 dark:bg-black/60 p-4 rounded-xl border border-white/10 max-h-64 overflow-y-auto">
-                    {template.content}
+                  <pre className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap font-sans bg-white/5 dark:bg-black/60 p-3 rounded-xl border border-white/10 max-h-40 overflow-y-auto">
+                    {personalizeTemplateContent(template.content)}
                   </pre>
                 </div>
 
                 {/* Actions */}
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => copyToClipboard(template.content, template.id)}
-                    className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg"
+                    onClick={() => copyToClipboard(personalizeTemplateContent(template.content), template.id)}
+                    className="flex-1 flex items-center justify-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl transition-all duration-300 shadow"
                   >
                     {copiedId === template.id ? (
                       <>
@@ -667,6 +809,13 @@ function Templates() {
                     )}
                   </button>
                   <button
+                    onClick={() => copyAndOpenMail(template.content, `${template.id}-mail`)}
+                    className="px-4 py-2 bg-blue-500/15 hover:bg-blue-500/25 text-blue-700 dark:text-blue-300 rounded-xl transition-all border border-blue-500/30"
+                    title="Copier + ouvrir mail"
+                  >
+                    <Mail className="w-4 h-4" />
+                  </button>
+                  <button
                     onClick={() => setShowDeleteConfirm(template.id)}
                     className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl transition-all border border-red-500/30"
                     title="Supprimer"
@@ -679,25 +828,6 @@ function Templates() {
           })}
         </div>
       )}
-
-      {/* Statistiques */}
-      <div className="bg-white/80 dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/20 shadow-lg">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {categories.filter(c => c.id !== 'all').map(category => {
-            const count = templates.filter(t => t.category === category.id).length
-            const Icon = category.icon
-            return (
-              <div key={category.id} className="text-center p-4 rounded-xl bg-white/5 border border-white/10">
-                <div className={`inline-flex p-3 rounded-xl bg-gradient-to-br ${category.color} mb-2`}>
-                  <Icon className="w-5 h-5 text-white" />
-                </div>
-                <div className="text-2xl font-bold text-gray-800 dark:text-white">{count}</div>
-                <div className="text-xs text-gray-600 dark:text-gray-400">{category.name}</div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
 
       {/* Confirmation de suppression */}
       {showDeleteConfirm && (
