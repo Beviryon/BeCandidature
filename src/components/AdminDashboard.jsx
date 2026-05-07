@@ -1,16 +1,23 @@
 import { useState, useEffect } from 'react'
 import { collection, getDocs, query, orderBy } from 'firebase/firestore'
 import { db } from '../firebaseConfig'
-import { Users, CheckCircle, XCircle, Pause, Play, Clock, Shield } from 'lucide-react'
-import { adminSetUserStatus } from '../services/adminService'
+import { Users, CheckCircle, XCircle, Pause, Play, Clock, Shield, Building2, UserCog } from 'lucide-react'
+import { adminSetUserStatus, adminAssignSchoolRole, adminGenerateSchoolCode, adminSyncSchoolCodes } from '../services/adminService'
 import { useToast } from '../contexts/ToastContext'
 import ConfirmDialog from './ConfirmDialog'
 
 function AdminDashboard() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all') // all, pending, active, suspended
+  const [filter, setFilter] = useState('all') // all, pending, active, suspended, school_leads, school_leads_pending
   const [actionLoading, setActionLoading] = useState(false)
+  const [assignDialog, setAssignDialog] = useState({
+    isOpen: false,
+    user: null,
+    role: 'school_admin',
+    schoolId: '',
+    approveFirst: false
+  })
   const [confirmDialog, setConfirmDialog] = useState({
     isOpen: false,
     title: '',
@@ -39,10 +46,34 @@ function AdminDashboard() {
         ...doc.data()
       }))
       setUsers(usersData)
+
+      const schoolCodeRecords = usersData
+        .filter((user) => ['school_admin', 'coach'].includes(user.role) && user.schoolId)
+        .map((user) => ({ schoolId: user.schoolId, ownerUid: user.id }))
+      if (schoolCodeRecords.length > 0) {
+        await adminSyncSchoolCodes(schoolCodeRecords)
+      }
     } catch (error) {
       console.error('Erreur chargement utilisateurs:', error)
+      showError(error?.message || 'Erreur lors du chargement admin')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSyncSchoolCodes = async () => {
+    try {
+      setActionLoading(true)
+      const schoolCodeRecords = users
+        .filter((user) => ['school_admin', 'coach'].includes(user.role) && user.schoolId)
+        .map((user) => ({ schoolId: user.schoolId, ownerUid: user.id }))
+      const result = await adminSyncSchoolCodes(schoolCodeRecords)
+      success(`Codes école synchronisés: ${result.synced}`)
+    } catch (error) {
+      console.error('Erreur synchronisation codes école:', error)
+      showError(error?.message || 'Impossible de synchroniser les codes école')
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -82,6 +113,16 @@ function AdminDashboard() {
     })
   }
 
+  const approveAndActivateSchool = (user) => {
+    setAssignDialog({
+      isOpen: true,
+      user,
+      role: 'school_admin',
+      schoolId: user.schoolId || '',
+      approveFirst: true
+    })
+  }
+
   const rejectUser = (userId) => {
     openConfirm({
       title: 'Rejeter cet utilisateur',
@@ -112,6 +153,88 @@ function AdminDashboard() {
     setSuspendDialog({ isOpen: false, userId: null, reason: '' })
   }
 
+  const assignSchoolRole = async (userId, role, schoolId = '') => {
+    try {
+      setActionLoading(true)
+      await adminAssignSchoolRole(userId, role, schoolId)
+      await loadUsers()
+      if (role === 'user') {
+        success('Compte remis en mode étudiant indépendant.')
+      } else {
+        success(`Rôle ${role} attribué avec succès.`)
+      }
+    } catch (error) {
+      console.error('Erreur attribution rôle école:', error)
+      showError(error?.message || 'Erreur lors de l’attribution du rôle école')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const openAssignDialog = (user, role) => {
+    setAssignDialog({
+      isOpen: true,
+      user,
+      role,
+      schoolId: user.schoolId || '',
+      approveFirst: false
+    })
+  }
+
+  const confirmAssignSchoolRole = () => {
+    const selectedSchoolId = assignDialog.schoolId?.trim()
+    if (!assignDialog.user || !selectedSchoolId) {
+      showError('Sélectionnez une école.')
+      return
+    }
+    const run = async () => {
+      try {
+        setActionLoading(true)
+        if (assignDialog.approveFirst) {
+          await adminSetUserStatus(assignDialog.user.id, 'active')
+        }
+        await adminAssignSchoolRole(assignDialog.user.id, assignDialog.role, selectedSchoolId)
+        await loadUsers()
+        setAssignDialog({ isOpen: false, user: null, role: 'school_admin', schoolId: '', approveFirst: false })
+        success(
+          assignDialog.approveFirst
+            ? 'Compte approuvé et activé en espace école.'
+            : `Rôle ${assignDialog.role} attribué avec succès.`
+        )
+      } catch (error) {
+        console.error('Erreur attribution rôle école:', error)
+        showError(error?.message || 'Erreur lors de l’attribution du rôle école')
+      } finally {
+        setActionLoading(false)
+      }
+    }
+    run()
+  }
+
+  const handleGenerateSchoolCode = async () => {
+    try {
+      setActionLoading(true)
+      const result = await adminGenerateSchoolCode()
+      setAssignDialog((prev) => ({ ...prev, schoolId: result.code }))
+      success(`Code généré: ${result.code}`)
+    } catch (error) {
+      console.error('Erreur génération code école:', error)
+      showError(error?.message || 'Impossible de générer un code école')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const resetToStudent = (user) => {
+    openConfirm({
+      title: 'Retirer le rôle école',
+      message: `${user.email} repassera en compte étudiant indépendant.`,
+      confirmText: 'Confirmer',
+      type: 'danger',
+      action: () => assignSchoolRole(user.id, 'user')
+    })
+  }
+
   const getStatusBadge = (status) => {
     const badges = {
       pending: { bg: 'bg-yellow-500/10 border-yellow-500/30', text: 'text-yellow-700 dark:text-yellow-400', label: '⏳ En attente' },
@@ -122,8 +245,20 @@ function AdminDashboard() {
     return badges[status] || badges.pending
   }
 
+  const getRoleBadge = (role) => {
+    const badges = {
+      admin: { bg: 'bg-red-500/10 border-red-500/30', text: 'text-red-700 dark:text-red-400', label: '🔐 Admin' },
+      school_admin: { bg: 'bg-indigo-500/10 border-indigo-500/30', text: 'text-indigo-700 dark:text-indigo-300', label: '🏫 École admin' },
+      coach: { bg: 'bg-blue-500/10 border-blue-500/30', text: 'text-blue-700 dark:text-blue-300', label: '🧭 Coach' },
+      user: { bg: 'bg-gray-500/10 border-gray-500/30', text: 'text-gray-700 dark:text-gray-300', label: '👤 Étudiant' }
+    }
+    return badges[role] || badges.user
+  }
+
   const filteredUsers = users.filter(user => {
     if (filter === 'all') return true
+    if (filter === 'school_leads') return user.accountType === 'school'
+    if (filter === 'school_leads_pending') return user.accountType === 'school' && user.status === 'pending'
     return user.status === filter
   })
 
@@ -131,7 +266,9 @@ function AdminDashboard() {
     total: users.length,
     pending: users.filter(u => u.status === 'pending').length,
     active: users.filter(u => u.status === 'active').length,
-    suspended: users.filter(u => u.status === 'suspended').length
+    suspended: users.filter(u => u.status === 'suspended').length,
+    schoolLeads: users.filter(u => u.accountType === 'school').length,
+    schoolLeadsPending: users.filter(u => u.accountType === 'school' && u.status === 'pending').length
   }
 
   if (loading) {
@@ -155,11 +292,20 @@ function AdminDashboard() {
             Dashboard Admin
           </h2>
         </div>
-        <p className="text-gray-600 dark:text-gray-400">Gestion des utilisateurs et approbations</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-gray-600 dark:text-gray-400">Gestion des utilisateurs et approbations</p>
+          <button
+            onClick={handleSyncSchoolCodes}
+            disabled={actionLoading}
+            className="px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 text-xs font-medium hover:bg-indigo-500/20 transition-all disabled:opacity-60"
+          >
+            Synchroniser les codes école
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-gray-300 dark:border-purple-500/30 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
@@ -194,6 +340,15 @@ function AdminDashboard() {
               <p className="text-3xl font-bold text-red-600 dark:text-red-400">{stats.suspended}</p>
             </div>
             <Pause className="w-8 h-8 text-red-600 dark:text-red-400" />
+          </div>
+        </div>
+        <div className="bg-white dark:bg-black/40 backdrop-blur-xl rounded-2xl p-6 border border-indigo-500/30 shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Leads École</p>
+              <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-300">{stats.schoolLeads}</p>
+            </div>
+            <Building2 className="w-8 h-8 text-indigo-600 dark:text-indigo-300" />
           </div>
         </div>
       </div>
@@ -240,6 +395,26 @@ function AdminDashboard() {
         >
           Suspendus ({stats.suspended})
         </button>
+        <button
+          onClick={() => setFilter('school_leads')}
+          className={`px-4 py-2 rounded-xl font-medium transition-all ${
+            filter === 'school_leads'
+              ? 'bg-indigo-500 text-white'
+              : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
+          }`}
+        >
+          Leads École ({stats.schoolLeads})
+        </button>
+        <button
+          onClick={() => setFilter('school_leads_pending')}
+          className={`px-4 py-2 rounded-xl font-medium transition-all ${
+            filter === 'school_leads_pending'
+              ? 'bg-amber-500 text-white'
+              : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
+          }`}
+        >
+          Leads École en attente ({stats.schoolLeadsPending})
+        </button>
       </div>
 
       {/* Liste des utilisateurs */}
@@ -252,6 +427,7 @@ function AdminDashboard() {
         ) : (
           filteredUsers.map(user => {
             const badge = getStatusBadge(user.status)
+            const roleBadge = getRoleBadge(user.role || 'user')
             return (
               <div
                 key={user.id}
@@ -274,12 +450,35 @@ function AdminDashboard() {
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${badge.bg} ${badge.text}`}>
                         {badge.label}
                       </span>
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${roleBadge.bg} ${roleBadge.text}`}>
+                        {roleBadge.label}
+                      </span>
+                      {user.schoolId && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-indigo-500/10 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300">
+                          <Building2 className="w-3 h-3 mr-1" />
+                          {user.schoolId}
+                        </span>
+                      )}
                       {user.suspendedReason && (
                         <span className="text-xs text-red-600 dark:text-red-400">
                           Raison: {user.suspendedReason}
                         </span>
                       )}
                     </div>
+                    {user.accountType === 'school' && (
+                      <div className="mt-3 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                        <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-1">Lead commercial école</p>
+                        <p className="text-xs text-gray-700 dark:text-gray-300">
+                          <strong>École:</strong> {user.schoolLead?.schoolName || 'N/A'} | <strong>Contact:</strong> {user.schoolLead?.contactName || 'N/A'}
+                        </p>
+                        <p className="text-xs text-gray-700 dark:text-gray-300">
+                          <strong>Fonction:</strong> {user.schoolLead?.roleTitle || 'N/A'} | <strong>Téléphone:</strong> {user.schoolLead?.phone || 'N/A'}
+                        </p>
+                        <p className="text-xs text-gray-700 dark:text-gray-300">
+                          <strong>Volume:</strong> {user.schoolLead?.studentVolume || 'N/A'}
+                        </p>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="flex flex-wrap gap-2">
@@ -301,6 +500,16 @@ function AdminDashboard() {
                           <XCircle className="w-4 h-4" />
                           <span>Rejeter</span>
                         </button>
+                        {user.accountType === 'school' && (
+                          <button
+                            onClick={() => approveAndActivateSchool(user)}
+                            disabled={actionLoading}
+                            className="flex items-center space-x-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl transition-all shadow-md"
+                          >
+                            <Building2 className="w-4 h-4" />
+                            <span>Approuver + activer école</span>
+                          </button>
+                        )}
                       </>
                     )}
                     {user.status === 'active' && (
@@ -323,6 +532,41 @@ function AdminDashboard() {
                         <span>Réactiver</span>
                       </button>
                     )}
+
+                    {user.role !== 'admin' && (
+                      <>
+                        {user.role !== 'school_admin' && (
+                          <button
+                            onClick={() => openAssignDialog(user, 'school_admin')}
+                            disabled={actionLoading}
+                            className="flex items-center space-x-2 px-4 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 rounded-xl transition-all border border-indigo-500/30"
+                          >
+                            <Building2 className="w-4 h-4" />
+                            <span>Compte école</span>
+                          </button>
+                        )}
+                        {user.role !== 'coach' && (
+                          <button
+                            onClick={() => openAssignDialog(user, 'coach')}
+                            disabled={actionLoading}
+                            className="flex items-center space-x-2 px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded-xl transition-all border border-blue-500/30"
+                          >
+                            <UserCog className="w-4 h-4" />
+                            <span>Coach école</span>
+                          </button>
+                        )}
+                        {user.role !== 'user' && (
+                          <button
+                            onClick={() => resetToStudent(user)}
+                            disabled={actionLoading}
+                            className="flex items-center space-x-2 px-4 py-2 bg-gray-500/10 hover:bg-gray-500/20 text-gray-700 dark:text-gray-300 rounded-xl transition-all border border-gray-400/30"
+                          >
+                            <Users className="w-4 h-4" />
+                            <span>Compte étudiant</span>
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -340,6 +584,49 @@ function AdminDashboard() {
         confirmText={confirmDialog.confirmText}
         type={confirmDialog.type}
       />
+
+      {assignDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full mx-4 border border-indigo-500/30 shadow-xl">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+              Attribuer {assignDialog.role === 'coach' ? 'Coach école' : 'Compte école'}
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+              Définissez un code école pour {assignDialog.user?.email}.
+            </p>
+            <input
+              type="text"
+              value={assignDialog.schoolId}
+              onChange={(e) => setAssignDialog(prev => ({ ...prev, schoolId: e.target.value }))}
+              placeholder="Code école (ex: SCH-ABC123)"
+              className="w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-2 mb-3 outline-none focus:ring-2 focus:ring-indigo-500/40"
+            />
+            <button
+              type="button"
+              onClick={handleGenerateSchoolCode}
+              disabled={actionLoading}
+              className="w-full mb-4 px-4 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 rounded-xl border border-indigo-500/30 transition-all disabled:opacity-60"
+            >
+              Générer un code école automatiquement
+            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={confirmAssignSchoolRole}
+                disabled={actionLoading}
+                className="flex-1 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-medium transition-all disabled:opacity-50"
+              >
+                Confirmer
+              </button>
+              <button
+                onClick={() => setAssignDialog({ isOpen: false, user: null, role: 'school_admin', schoolId: '', approveFirst: false })}
+                className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-xl font-medium transition-all"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {suspendDialog.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">

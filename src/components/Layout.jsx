@@ -1,5 +1,5 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
-import { LogOut, Plus, List, BarChart3, Calendar, Bot, Search, Sparkles, FileText, Mail, MessageSquare, Linkedin, Menu, X, Moon, Sun, Shield, FileSpreadsheet, Mic } from 'lucide-react'
+import { LogOut, Plus, List, BarChart3, Calendar, Bot, Search, Sparkles, FileText, Mail, MessageSquare, Linkedin, Menu, X, Moon, Sun, Shield, FileSpreadsheet, Mic, Building2, UserRound } from 'lucide-react'
 import { signOut } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '../firebaseConfig'
@@ -15,6 +15,7 @@ function Layout() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const [userRole, setUserRole] = useState('user')
+  const [isAssistantModalOpen, setIsAssistantModalOpen] = useState(false)
 
   useEffect(() => {
     const loadUserRole = async () => {
@@ -44,6 +45,9 @@ function Layout() {
   }
 
   const isActive = (path) => location.pathname === path
+  const showAssistantComingSoon = () => {
+    setIsAssistantModalOpen(true)
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-50 via-purple-50 to-blue-50 dark:from-slate-900 dark:via-purple-900 dark:to-slate-900 transition-colors duration-300">
@@ -99,6 +103,10 @@ function Layout() {
               </Link>
               <Link
                 to="/assistant"
+                onClick={(event) => {
+                  event.preventDefault()
+                  showAssistantComingSoon()
+                }}
                 className={`flex items-center space-x-2 px-3 py-2 rounded-xl font-medium text-sm transition-all duration-300 ${
                   isActive('/assistant')
                     ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
@@ -108,29 +116,6 @@ function Layout() {
                 <Bot className="w-4 h-4" />
                 <span>Assistant</span>
               </Link>
-              <Link
-                to="/simulateur"
-                className={`flex items-center space-x-2 px-3 py-2 rounded-xl font-medium text-sm transition-all duration-300 ${
-                  isActive('/simulateur')
-                    ? 'bg-gradient-to-r from-rose-500/20 to-pink-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/30'
-                    : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
-                }`}
-              >
-                <Mic className="w-4 h-4" />
-                <span>Simulateur</span>
-              </Link>
-              <Link
-                to="/scan-offres"
-                className={`flex items-center space-x-2 px-3 py-2 rounded-xl font-medium text-sm transition-all duration-300 ${
-                  isActive('/scan-offres')
-                    ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
-                    : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
-                }`}
-              >
-                <Search className="w-4 h-4" />
-                <span>Offres</span>
-              </Link>
-
               {/* Menu Burger */}
               <div className="relative">
                 <button
@@ -148,70 +133,118 @@ function Layout() {
                       className="fixed inset-0 z-30"
                       onClick={() => setIsMenuOpen(false)}
                     />
-                    <div className="absolute right-0 top-12 w-80 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-purple-500/20 z-40 p-4 backdrop-blur-xl">
-                      <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-2">
+                    <div className="absolute right-0 top-12 w-64 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-purple-500/20 z-40 p-2.5 backdrop-blur-xl">
+                      <h3 className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-1.5">
                         Plus d&apos;options
                       </h3>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-3 gap-2">
+                        <Link
+                          to="/scan-offres"
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`group flex flex-col items-center justify-center p-2 rounded-lg min-h-[72px] transition-all duration-300 ${
+                            isActive('/scan-offres')
+                              ? 'bg-gradient-to-br from-violet-500 to-violet-600 text-white shadow-lg shadow-violet-500/30'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-violet-50 dark:hover:bg-violet-900/20 hover:shadow-md'
+                          }`}
+                        >
+                          <Search className={`w-5 h-5 mb-1 ${isActive('/scan-offres') ? 'text-white' : 'text-violet-600 dark:text-violet-400'}`} />
+                          <span className="text-[11px] leading-tight font-semibold text-center">Offres</span>
+                        </Link>
+                        <Link
+                          to="/simulateur"
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`group flex flex-col items-center justify-center p-2 rounded-lg min-h-[72px] transition-all duration-300 ${
+                            isActive('/simulateur')
+                              ? 'bg-gradient-to-br from-rose-500 to-pink-500 text-white shadow-lg shadow-rose-500/30'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:shadow-md'
+                          }`}
+                        >
+                          <Mic className={`w-5 h-5 mb-1 ${isActive('/simulateur') ? 'text-white' : 'text-rose-600 dark:text-rose-400'}`} />
+                          <span className="text-[11px] leading-tight font-semibold text-center">Simulateur</span>
+                        </Link>
+                        <Link
+                          to="/rattachement-ecole"
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`group flex flex-col items-center justify-center p-2 rounded-lg min-h-[72px] transition-all duration-300 ${
+                            isActive('/rattachement-ecole')
+                              ? 'bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/30'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:shadow-md'
+                          }`}
+                        >
+                          <Building2 className={`w-5 h-5 mb-1 ${isActive('/rattachement-ecole') ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'}`} />
+                          <span className="text-[11px] leading-tight font-semibold text-center">École</span>
+                        </Link>
+                        <Link
+                          to="/profil"
+                          onClick={() => setIsMenuOpen(false)}
+                          className={`group flex flex-col items-center justify-center p-2 rounded-lg min-h-[72px] transition-all duration-300 ${
+                            isActive('/profil')
+                              ? 'bg-gradient-to-br from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/30'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 hover:shadow-md'
+                          }`}
+                        >
+                          <UserRound className={`w-5 h-5 mb-1 ${isActive('/profil') ? 'text-white' : 'text-cyan-600 dark:text-cyan-400'}`} />
+                          <span className="text-[11px] leading-tight font-semibold text-center">Profil</span>
+                        </Link>
                         <Link
                           to="/cv"
                           onClick={() => setIsMenuOpen(false)}
-                          className={`group flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300 transform hover:scale-105 ${
+                          className={`group flex flex-col items-center justify-center p-2 rounded-lg min-h-[72px] transition-all duration-300 ${
                             isActive('/cv')
                               ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-500/30'
                               : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:shadow-md'
                           }`}
                         >
-                          <FileText className={`w-8 h-8 mb-2 ${isActive('/cv') ? 'text-white' : 'text-purple-600 dark:text-purple-400'}`} />
-                          <span className="text-sm font-semibold text-center">CV</span>
+                          <FileText className={`w-5 h-5 mb-1 ${isActive('/cv') ? 'text-white' : 'text-purple-600 dark:text-purple-400'}`} />
+                          <span className="text-[11px] leading-tight font-semibold text-center">CV</span>
                         </Link>
                         <Link
                           to="/import-email"
                           onClick={() => setIsMenuOpen(false)}
-                          className={`group flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300 transform hover:scale-105 ${
+                          className={`group flex flex-col items-center justify-center p-2 rounded-lg min-h-[72px] transition-all duration-300 ${
                             isActive('/import-email')
                               ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30'
                               : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-md'
                           }`}
                         >
-                          <Mail className={`w-8 h-8 mb-2 ${isActive('/import-email') ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
-                          <span className="text-sm font-semibold text-center">Email</span>
+                          <Mail className={`w-5 h-5 mb-1 ${isActive('/import-email') ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
+                          <span className="text-[11px] leading-tight font-semibold text-center">Email</span>
                         </Link>
                         <Link
                           to="/import-excel"
                           onClick={() => setIsMenuOpen(false)}
-                          className={`group flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300 transform hover:scale-105 ${
+                          className={`group flex flex-col items-center justify-center p-2 rounded-lg min-h-[72px] transition-all duration-300 ${
                             isActive('/import-excel')
                               ? 'bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg shadow-green-500/30'
                               : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 hover:shadow-md'
                           }`}
                         >
-                          <FileSpreadsheet className={`w-8 h-8 mb-2 ${isActive('/import-excel') ? 'text-white' : 'text-green-600 dark:text-green-400'}`} />
-                          <span className="text-sm font-semibold text-center">Excel</span>
+                          <FileSpreadsheet className={`w-5 h-5 mb-1 ${isActive('/import-excel') ? 'text-white' : 'text-green-600 dark:text-green-400'}`} />
+                          <span className="text-[11px] leading-tight font-semibold text-center">Excel</span>
                         </Link>
                         <Link
                           to="/templates"
                           onClick={() => setIsMenuOpen(false)}
-                          className={`group flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300 transform hover:scale-105 ${
+                          className={`group flex flex-col items-center justify-center p-2 rounded-lg min-h-[72px] transition-all duration-300 ${
                             isActive('/templates')
                               ? 'bg-gradient-to-br from-pink-500 to-pink-600 text-white shadow-lg shadow-pink-500/30'
                               : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-pink-50 dark:hover:bg-pink-900/20 hover:shadow-md'
                           }`}
                         >
-                          <Sparkles className={`w-8 h-8 mb-2 ${isActive('/templates') ? 'text-white' : 'text-pink-600 dark:text-pink-400'}`} />
-                          <span className="text-sm font-semibold text-center">Templates</span>
+                          <Sparkles className={`w-5 h-5 mb-1 ${isActive('/templates') ? 'text-white' : 'text-pink-600 dark:text-pink-400'}`} />
+                          <span className="text-[11px] leading-tight font-semibold text-center">Templates</span>
                         </Link>
                         <Link
                           to="/linkedin"
                           onClick={() => setIsMenuOpen(false)}
-                          className={`group flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300 transform hover:scale-105 ${
+                          className={`group flex flex-col items-center justify-center p-2 rounded-lg min-h-[72px] transition-all duration-300 ${
                             isActive('/linkedin')
                               ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-600/30'
                               : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:shadow-md'
                           }`}
                         >
-                          <Linkedin className={`w-8 h-8 mb-2 ${isActive('/linkedin') ? 'text-white' : 'text-blue-700 dark:text-blue-400'}`} />
-                          <span className="text-sm font-semibold text-center">LinkedIn</span>
+                          <Linkedin className={`w-5 h-5 mb-1 ${isActive('/linkedin') ? 'text-white' : 'text-blue-700 dark:text-blue-400'}`} />
+                          <span className="text-[11px] leading-tight font-semibold text-center">LinkedIn</span>
                         </Link>
                         
                         {/* Lien Admin (uniquement pour les admins) */}
@@ -219,14 +252,14 @@ function Layout() {
                           <Link
                             to="/admin"
                             onClick={() => setIsMenuOpen(false)}
-                            className={`group col-span-2 flex flex-col items-center justify-center p-4 rounded-xl transition-all duration-300 transform hover:scale-105 border-2 ${
+                            className={`group col-span-3 flex flex-col items-center justify-center p-2 rounded-lg min-h-[72px] transition-all duration-300 border ${
                               isActive('/admin')
                                 ? 'bg-gradient-to-br from-red-500 to-orange-500 text-white shadow-lg shadow-red-500/30 border-red-500'
                                 : 'bg-gradient-to-br from-red-500/10 to-orange-500/10 text-red-700 dark:text-red-400 hover:from-red-500/20 hover:to-orange-500/20 hover:shadow-md border-red-500/30'
                             }`}
                           >
-                            <Shield className={`w-8 h-8 mb-2 ${isActive('/admin') ? 'text-white' : 'text-red-600 dark:text-red-400'}`} />
-                            <span className="text-sm font-semibold text-center">🔐 Admin Dashboard</span>
+                            <Shield className={`w-5 h-5 mb-1 ${isActive('/admin') ? 'text-white' : 'text-red-600 dark:text-red-400'}`} />
+                            <span className="text-[11px] leading-tight font-semibold text-center">Admin Dashboard</span>
                           </Link>
                         )}
                       </div>
@@ -336,7 +369,11 @@ function Layout() {
             </Link>
             <Link
               to="/assistant"
-              onClick={() => setIsMobileNavOpen(false)}
+              onClick={(event) => {
+                event.preventDefault()
+                setIsMobileNavOpen(false)
+                showAssistantComingSoon()
+              }}
               className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
                 isActive('/assistant')
                   ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-700 dark:text-white border border-purple-500/30'
@@ -369,6 +406,30 @@ function Layout() {
             >
               <Search className="w-4 h-4 mb-1" />
               <span>Offres</span>
+            </Link>
+            <Link
+              to="/rattachement-ecole"
+              onClick={() => setIsMobileNavOpen(false)}
+              className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
+                isActive('/rattachement-ecole')
+                  ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30'
+                  : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+              }`}
+            >
+              <Building2 className="w-4 h-4 mb-1" />
+              <span>École</span>
+            </Link>
+            <Link
+              to="/profil"
+              onClick={() => setIsMobileNavOpen(false)}
+              className={`flex flex-col items-center px-3 py-2 rounded-xl font-medium text-xs transition-all duration-300 ${
+                isActive('/profil')
+                  ? 'bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30'
+                  : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+              }`}
+            >
+              <UserRound className="w-4 h-4 mb-1" />
+              <span>Profil</span>
             </Link>
             <Link
               to="/import-email"
@@ -464,6 +525,25 @@ function Layout() {
       >
         <Plus className="w-8 h-8 text-white" />
       </Link>
+
+      {isAssistantModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-purple-500/30 bg-white dark:bg-gray-900 shadow-2xl p-6 text-center">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+              Assistant
+            </h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-5">
+              Bientôt disponible pour votre service.
+            </p>
+            <button
+              onClick={() => setIsAssistantModalOpen(false)}
+              className="px-4 py-2 rounded-xl bg-purple-500 hover:bg-purple-600 text-white font-medium transition-all"
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

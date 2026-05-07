@@ -5,8 +5,20 @@ const OpenAI = require('openai');
 
 admin.initializeApp();
 
-// Initialiser Resend avec votre clé API
-const resend = new Resend(functions.config().resend.apikey);
+// Initialiser Resend de manière lazy pour éviter de casser
+// les fonctions callable si la config email est absente.
+const getResendClient = () => {
+  const resendApiKey = functions.config().resend?.apikey || process.env.RESEND_API_KEY;
+  if (!resendApiKey) {
+    return null;
+  }
+  try {
+    return new Resend(resendApiKey);
+  } catch (error) {
+    console.error('Resend init error:', error);
+    return null;
+  }
+};
 
 // Prompt système côté serveur (non exposé au navigateur)
 const AI_SYSTEM_PROMPT = `Tu es un assistant IA de BeCandidature expert en candidatures d'emploi et alternance.
@@ -84,6 +96,74 @@ exports.adminSetUserStatus = functions.https.onCall(async (data, context) => {
     userId: targetUserId,
     previousStatus: currentUserData.status || null,
     status: requestedStatus
+  };
+});
+
+exports.adminAssignSchoolRole = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Authentification requise.');
+  }
+
+  const adminUid = context.auth.uid;
+  const adminDoc = await admin.firestore().collection('users').doc(adminUid).get();
+  if (!adminDoc.exists || adminDoc.data().role !== 'admin') {
+    throw new functions.https.HttpsError('permission-denied', 'Accès administrateur requis.');
+  }
+
+  const targetUserId = typeof data?.userId === 'string' ? data.userId.trim() : '';
+  const requestedRole = typeof data?.role === 'string' ? data.role.trim() : '';
+  const schoolId = typeof data?.schoolId === 'string' ? data.schoolId.trim() : '';
+  const validRoles = new Set(['user', 'school_admin', 'coach']);
+
+  if (!targetUserId) {
+    throw new functions.https.HttpsError('invalid-argument', 'userId est requis.');
+  }
+  if (!validRoles.has(requestedRole)) {
+    throw new functions.https.HttpsError('invalid-argument', 'role invalide.');
+  }
+  if ((requestedRole === 'school_admin' || requestedRole === 'coach') && !schoolId) {
+    throw new functions.https.HttpsError('invalid-argument', 'schoolId est requis pour ce rôle.');
+  }
+
+  const userRef = admin.firestore().collection('users').doc(targetUserId);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) {
+    throw new functions.https.HttpsError('not-found', 'Utilisateur introuvable.');
+  }
+
+  const currentData = userSnap.data();
+  if (currentData.role === 'admin') {
+    throw new functions.https.HttpsError('failed-precondition', 'Le rôle admin ne peut pas être modifié ici.');
+  }
+
+  const updates = {
+    role: requestedRole,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    roleUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    roleUpdatedBy: adminUid
+  };
+
+  if (requestedRole === 'school_admin' || requestedRole === 'coach') {
+    updates.schoolId = schoolId;
+    updates.schoolMembership = {
+      status: 'active',
+      schoolId
+    };
+  } else {
+    updates.schoolId = admin.firestore.FieldValue.delete();
+    updates.schoolMembership = {
+      status: 'none'
+    };
+  }
+
+  await userRef.update(updates);
+
+  return {
+    ok: true,
+    userId: targetUserId,
+    previousRole: currentData.role || 'user',
+    role: requestedRole,
+    schoolId: requestedRole === 'user' ? null : schoolId
   };
 });
 
@@ -169,10 +249,15 @@ exports.sendWelcomeEmail = functions.firestore
   .onCreate(async (snap, context) => {
     const userData = snap.data();
     const email = userData.email;
+    const resendClient = getResendClient();
 
     if (userData.status === 'pending') {
+      if (!resendClient) {
+        console.warn('Resend non configuré: email de bienvenue ignoré.');
+        return null;
+      }
       try {
-        await resend.emails.send({
+        await resendClient.emails.send({
           from: 'BeCandidature <noreply@becandidature.com>',
           to: email,
           subject: '🎯 Bienvenue sur BeCandidature !',
@@ -233,11 +318,15 @@ exports.sendApprovalEmail = functions.firestore
     const beforeData = change.before.data();
     const afterData = change.after.data();
     const email = afterData.email;
+    const resendClient = getResendClient();
 
     // Vérifier si le statut est passé de "pending" à "active"
     if (beforeData.status === 'pending' && afterData.status === 'active') {
+      if (!resendClient) {
+        console.warn('Resend non configuré: email d\'approbation ignoré.');
+      } else {
       try {
-        await resend.emails.send({
+        await resendClient.emails.send({
           from: 'BeCandidature <noreply@becandidature.com>',
           to: email,
           subject: '✅ Votre compte BeCandidature est activé !',
@@ -300,13 +389,17 @@ exports.sendApprovalEmail = functions.firestore
       } catch (error) {
         console.error('❌ Erreur envoi email approbation:', error);
       }
+      }
     }
 
     // Email après suspension
     if (beforeData.status === 'active' && afterData.status === 'suspended') {
       const reason = afterData.suspendedReason || 'Non spécifiée';
+      if (!resendClient) {
+        console.warn('Resend non configuré: email de suspension ignoré.');
+      } else {
       try {
-        await resend.emails.send({
+        await resendClient.emails.send({
           from: 'BeCandidature <noreply@becandidature.com>',
           to: email,
           subject: '⚠️ Votre compte BeCandidature a été suspendu',
@@ -352,6 +445,7 @@ exports.sendApprovalEmail = functions.firestore
         console.log('✅ Email de suspension envoyé à:', email);
       } catch (error) {
         console.error('❌ Erreur envoi email suspension:', error);
+      }
       }
     }
   });

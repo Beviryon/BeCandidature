@@ -10,14 +10,70 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    function userDocExists() {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function currentUserRole() {
+      return userDocExists()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    function currentUserSchoolId() {
+      return userDocExists()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId
+        : null;
+    }
+
     function isAdmin() {
-      return isAuthenticated() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return currentUserRole() == 'admin';
+    }
+
+    function isSchoolStaffFor(schoolId) {
+      return isAuthenticated() && (
+        isAdmin() ||
+        (
+          currentUserRole() in ['school_admin', 'coach']
+          && currentUserSchoolId() == schoolId
+        )
+      );
+    }
+
+    function isSchoolAdminFor(schoolId) {
+      return isAuthenticated() && (
+        isAdmin() ||
+        (
+          currentUserRole() == 'school_admin'
+          && currentUserSchoolId() == schoolId
+        )
+      );
     }
 
     function candidatureOwnedByCurrentUser(data) {
       return data.userId == request.auth.uid || data.user_id == request.auth.uid;
+    }
+
+    function canSchoolReadCandidature(data) {
+      return isAuthenticated()
+        && currentUserRole() in ['school_admin', 'coach']
+        && (
+          (
+            data.userId is string
+            && exists(/databases/$(database)/documents/schools/$(currentUserSchoolId())/students/$(data.userId))
+          )
+          || (
+            data.user_id is string
+            && exists(/databases/$(database)/documents/schools/$(currentUserSchoolId())/students/$(data.user_id))
+          )
+        );
+    }
+
+    function isLinkedSchoolStudent(schoolId, studentId) {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/schools/$(schoolId)/students/$(studentId))
+        && get(/databases/$(database)/documents/schools/$(schoolId)/students/$(studentId)).data.linkedUid == request.auth.uid;
     }
 
     // Collection USERS - Système d'approbation admin sécurisé
@@ -37,19 +93,140 @@ service cloud.firestore {
         && request.resource.data.role == resource.data.role
         && request.resource.data.status == resource.data.status
         && request.resource.data.email == resource.data.email
+      ) || (
+        // Staff école: peut uniquement rattacher/détacher un étudiant à son école
+        isAuthenticated()
+        && resource.data.role == 'user'
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'schoolId',
+          'schoolMembership',
+          'updatedAt'
+        ])
+        && request.resource.data.schoolMembership is map
+        && request.resource.data.schoolMembership.schoolId is string
+        && request.resource.data.schoolMembership.status in ['active', 'none']
+        && request.resource.data.schoolId == request.resource.data.schoolMembership.schoolId
+        && (
+          request.resource.data.schoolMembership.status == 'none'
+          || isSchoolStaffFor(request.resource.data.schoolMembership.schoolId)
+        )
       ) || isAdmin();
 
       // Suppression uniquement admin
       allow delete: if isAdmin();
     }
 
-    // Collection CANDIDATURES - Strictement isolée par utilisateur
+    // Collection CANDIDATURES
+    // - Etudiant: accès à ses candidatures uniquement
+    // - Staff école: lecture des candidatures des étudiants rattachés à son école
     match /candidatures/{candidatureId} {
       allow create: if isAuthenticated() && candidatureOwnedByCurrentUser(request.resource.data);
-      allow read, delete: if isAuthenticated() && candidatureOwnedByCurrentUser(resource.data);
+      allow read: if isAuthenticated()
+        && (
+          candidatureOwnedByCurrentUser(resource.data)
+          || canSchoolReadCandidature(resource.data)
+          || isAdmin()
+        );
+      allow delete: if isAuthenticated() && candidatureOwnedByCurrentUser(resource.data);
       allow update: if isAuthenticated()
         && candidatureOwnedByCurrentUser(resource.data)
         && candidatureOwnedByCurrentUser(request.resource.data);
+    }
+
+    // Référentiel des codes école (validation code étudiant)
+    match /schoolCodes/{schoolId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Demandes de rattachement étudiant -> école
+    // Cas couvert:
+    // - Etudiant indépendant crée une demande (status: pending)
+    // - Ecole valide/rejette la demande
+    match /schoolLinkRequests/{requestId} {
+      allow create: if isAuthenticated()
+        && request.resource.data.studentUid == request.auth.uid
+        && request.resource.data.schoolId is string
+        && exists(/databases/$(database)/documents/schoolCodes/$(request.resource.data.schoolId))
+        && get(/databases/$(database)/documents/schoolCodes/$(request.resource.data.schoolId)).data.isActive == true
+        && request.resource.data.status == 'pending';
+
+      allow read: if isAuthenticated() && (
+        resource.data.studentUid == request.auth.uid
+        || isSchoolStaffFor(resource.data.schoolId)
+      );
+
+      allow update: if isAuthenticated() && (
+        // Etudiant: peut annuler sa propre demande en attente
+        (
+          resource.data.studentUid == request.auth.uid
+          && resource.data.status == 'pending'
+          && request.resource.data.studentUid == resource.data.studentUid
+          && request.resource.data.schoolId == resource.data.schoolId
+          && request.resource.data.status in ['pending', 'cancelled']
+        )
+        ||
+        // Ecole: peut accepter/refuser
+        (
+          isSchoolStaffFor(resource.data.schoolId)
+          && request.resource.data.studentUid == resource.data.studentUid
+          && request.resource.data.schoolId == resource.data.schoolId
+          && request.resource.data.status in ['pending', 'approved', 'rejected']
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // Espace école (pilotage des étudiants/candidats)
+    // Important: une école peut créer ses propres candidats (sans compte)
+    // via /schools/{schoolId}/students/{studentId} avec type='school_created'
+    match /schools/{schoolId} {
+      allow read: if isSchoolStaffFor(schoolId);
+      allow create, update, delete: if isAdmin();
+
+      match /classes/{classId} {
+        allow read: if isSchoolStaffFor(schoolId);
+        allow create, update, delete: if isSchoolStaffFor(schoolId);
+      }
+
+      match /members/{memberUid} {
+        allow read: if isSchoolStaffFor(schoolId) || isOwner(memberUid);
+        allow create, update, delete: if isSchoolAdminFor(schoolId);
+      }
+
+      match /students/{studentId} {
+        // Staff école lit tout
+        // Etudiant lié (linkedUid) peut lire sa fiche de suivi
+        allow read: if isSchoolStaffFor(schoolId)
+          || (isAuthenticated() && resource.data.linkedUid == request.auth.uid);
+
+        // Création d'un étudiant/candidat par l'école
+        allow create: if isSchoolStaffFor(schoolId)
+          && request.resource.data.type in ['linked_account', 'school_created'];
+
+        // Staff école met à jour
+        // Etudiant lié peut mettre à jour, sans changer son lien/son type
+        allow update: if isSchoolStaffFor(schoolId)
+          || (
+            isAuthenticated()
+            && resource.data.linkedUid == request.auth.uid
+            && request.resource.data.linkedUid == resource.data.linkedUid
+            && request.resource.data.type == resource.data.type
+          );
+
+        allow delete: if isSchoolAdminFor(schoolId);
+
+        // Candidatures attachées à une fiche étudiant école
+        match /candidatures/{candidatureId} {
+          allow read: if isSchoolStaffFor(schoolId)
+            || isLinkedSchoolStudent(schoolId, studentId);
+          allow create, update, delete: if isSchoolStaffFor(schoolId);
+        }
+      }
     }
   }
 }

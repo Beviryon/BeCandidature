@@ -135,6 +135,44 @@ BeCandidature/
 - Conserver les clés sensibles dans Firebase Functions config ou variables serveur
 - Vérifier que les règles Firestore limitent l'accès aux données de l'utilisateur connecté
 
+## Mode École (suivi étudiants)
+
+Le produit peut fonctionner avec 2 parcours en parallèle:
+
+- Étudiant indépendant: compte classique, non rattaché à une école.
+- Étudiant rattaché: l'étudiant choisit d'être suivi par une école (consentement).
+- Candidat créé par l'école: une école peut créer une fiche candidat sans compte utilisateur.
+
+### Collections recommandées
+
+- `users/{uid}`
+  - `role`: `user | admin | school_admin | coach`
+  - `schoolId` (optionnel)
+  - `schoolMembership.status`: `none | pending | active | revoked`
+  - `consents.schoolTracking`: `true/false`
+
+- `schoolLinkRequests/{requestId}`
+  - `studentUid`, `schoolId`, `status: pending|approved|rejected|cancelled`
+
+- `schools/{schoolId}`
+  - infos école
+  - `members/{memberUid}`: équipe école
+  - `students/{studentId}`:
+    - `type`: `linked_account | school_created`
+    - `linkedUid` (si compte étudiant existant)
+    - infos de suivi
+    - `candidatures/{candidatureId}` (optionnel, espace de suivi école)
+
+### Règles de sécurité Firestore
+
+Le fichier `firestore.rules` inclut déjà une base pour:
+
+- demandes de rattachement (`schoolLinkRequests`)
+- accès école par rôle (`school_admin`, `coach`, `admin`)
+- gestion des étudiants/candidats école (`schools/{schoolId}/students`)
+
+Avant déploiement, adaptez les règles aux champs exacts de vos écrans/Cloud Functions.
+
 ## Déploiement
 
 - Frontend: Vercel / Netlify / Firebase Hosting

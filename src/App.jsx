@@ -1,13 +1,16 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { onAuthStateChanged } from 'firebase/auth'
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from './firebaseConfig'
 import { DEMO_MODE } from './demoData'
 import { migrateLocalStorageToFirestore } from './utils/migrateLocalStorage'
 import OnboardingTour from './components/OnboardingTour'
 import Login from './components/Login'
 import Register from './components/Register'
+import RegisterTypeChoice from './components/RegisterTypeChoice'
+import RegisterSchool from './components/RegisterSchool'
+import SchoolOffers from './components/SchoolOffers'
 import PendingApproval from './components/PendingApproval'
 import StatusModal from './components/StatusModal'
 import AdminDashboard from './components/AdminDashboard'
@@ -19,6 +22,8 @@ import Calendrier from './components/Calendrier'
 import CVGenerator from './components/CVGenerator'
 import AssistantIA from './components/AssistantIA'
 import InterviewSimulator from './components/InterviewSimulator'
+import SchoolLinkRequest from './components/SchoolLinkRequest'
+import StudentProfile from './components/StudentProfile'
 import EmailImport from './components/EmailImport'
 import ExcelImport from './components/ExcelImport'
 import JobScanner from './components/JobScanner'
@@ -27,11 +32,18 @@ import LinkedInIntegration from './components/LinkedInIntegration'
 import CandidatureDetail from './components/CandidatureDetail'
 import CalendarIntegration from './components/CalendarIntegration'
 import Layout from './components/Layout'
+import SchoolLayout from './components/SchoolLayout'
+import SchoolDashboard from './components/SchoolDashboard'
+import SchoolRequests from './components/SchoolRequests'
+import SchoolStudents from './components/SchoolStudents'
+import SchoolClasses from './components/SchoolClasses'
+import SchoolStudentDetail from './components/SchoolStudentDetail'
 
 function App() {
   const [session, setSession] = useState(null)
   const [userStatus, setUserStatus] = useState(null)
   const [userRole, setUserRole] = useState(null)
+  const [userAccountType, setUserAccountType] = useState('student')
   const [suspensionReason, setSuspensionReason] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showStatusModal, setShowStatusModal] = useState(false)
@@ -45,12 +57,14 @@ function App() {
         setSession(JSON.parse(demoSession))
         setUserStatus('active') // Demo toujours actif
         setUserRole('user')
+        setUserAccountType('student')
         setLoading(false)
         return
       }
     }
 
     // Écouter les changements d'authentification Firebase
+    let unsubscribeUserDoc = null
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         // Charger le statut de l'utilisateur depuis Firestore
@@ -61,6 +75,7 @@ function App() {
             // Si pas de statut, c'est un ancien utilisateur → considéré comme actif
             setUserStatus(userData.status || 'active')
             setUserRole(userData.role || 'user')
+            setUserAccountType(userData.accountType || 'student')
             setSuspensionReason(userData.suspendedReason || null)
             
             // Afficher le modal si suspendu ou rejeté
@@ -79,7 +94,23 @@ function App() {
             })
             setUserStatus('active')
             setUserRole('user')
+            setUserAccountType('student')
           }
+
+          // Garder le statut synchronisé en temps réel (ex: approbation admin)
+          unsubscribeUserDoc = onSnapshot(doc(db, 'users', user.uid), (snapshot) => {
+            if (!snapshot.exists()) return
+            const liveUserData = snapshot.data()
+            setUserStatus(liveUserData.status || 'active')
+            setUserRole(liveUserData.role || 'user')
+            setUserAccountType(liveUserData.accountType || 'student')
+            setSuspensionReason(liveUserData.suspendedReason || null)
+            if (liveUserData.status === 'suspended' || liveUserData.status === 'rejected') {
+              setShowStatusModal(true)
+            } else {
+              setShowStatusModal(false)
+            }
+          })
           
           // Migration automatique des données localStorage → Firestore
           if (!DEMO_MODE) {
@@ -104,13 +135,21 @@ function App() {
           // En cas d'erreur, considérer comme actif pour ne pas bloquer les anciens utilisateurs
           setUserStatus('active')
           setUserRole('user')
+          setUserAccountType('student')
         }
+      }
+      if (!user && unsubscribeUserDoc) {
+        unsubscribeUserDoc()
+        unsubscribeUserDoc = null
       }
       setSession(user)
       setLoading(false)
     })
 
-    return () => unsubscribe()
+    return () => {
+      unsubscribe()
+      if (unsubscribeUserDoc) unsubscribeUserDoc()
+    }
   }, [])
 
   const handleOnboardingComplete = () => {
@@ -127,6 +166,8 @@ function App() {
       </div>
     )
   }
+
+  const isSchoolWorkspaceUser = userRole === 'school_admin' || userRole === 'coach' || userAccountType === 'school'
 
   return (
     <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -148,7 +189,10 @@ function App() {
         {!session ? (
           <>
             <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            <Route path="/register" element={<RegisterTypeChoice />} />
+            <Route path="/register/etudiant" element={<Register />} />
+            <Route path="/register/ecole" element={<SchoolOffers />} />
+            <Route path="/register/ecole/inscription" element={<RegisterSchool />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </>
         ) : userStatus === 'pending' ? (
@@ -169,24 +213,37 @@ function App() {
                 <Route path="/admin" element={<AdminDashboard />} />
               </Route>
             )}
-            <Route element={<Layout />}>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/candidatures" element={<ListeCandidatures />} />
-              <Route path="/candidatures/:id" element={<CandidatureDetail />} />
-              <Route path="/calendrier" element={<Calendrier />} />
-              <Route path="/calendrier/integration" element={<CalendarIntegration />} />
-              <Route path="/cv" element={<CVGenerator />} />
-              <Route path="/assistant" element={<AssistantIA />} />
-              <Route path="/simulateur" element={<InterviewSimulator />} />
-              <Route path="/import-email" element={<EmailImport />} />
-              <Route path="/import-excel" element={<ExcelImport />} />
-              <Route path="/scan-offres" element={<JobScanner />} />
-              <Route path="/ajouter" element={<AjouterCandidature />} />
-              <Route path="/modifier/:id" element={<ModifierCandidature />} />
-              <Route path="/templates" element={<Templates />} />
-              <Route path="/linkedin" element={<LinkedInIntegration />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
+            {isSchoolWorkspaceUser ? (
+              <Route element={<SchoolLayout />}>
+                <Route path="/ecole" element={<SchoolDashboard />} />
+                <Route path="/ecole/demandes" element={<SchoolRequests />} />
+                <Route path="/ecole/etudiants" element={<SchoolStudents />} />
+                <Route path="/ecole/classes" element={<SchoolClasses />} />
+                <Route path="/ecole/etudiants/:studentId" element={<SchoolStudentDetail />} />
+                <Route path="*" element={<Navigate to="/ecole" replace />} />
+              </Route>
+            ) : (
+              <Route element={<Layout />}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/candidatures" element={<ListeCandidatures />} />
+                <Route path="/candidatures/:id" element={<CandidatureDetail />} />
+                <Route path="/calendrier" element={<Calendrier />} />
+                <Route path="/calendrier/integration" element={<CalendarIntegration />} />
+                <Route path="/cv" element={<CVGenerator />} />
+                <Route path="/assistant" element={<AssistantIA />} />
+                <Route path="/simulateur" element={<InterviewSimulator />} />
+                <Route path="/profil" element={<StudentProfile />} />
+                <Route path="/rattachement-ecole" element={<SchoolLinkRequest />} />
+                <Route path="/import-email" element={<EmailImport />} />
+                <Route path="/import-excel" element={<ExcelImport />} />
+                <Route path="/scan-offres" element={<JobScanner />} />
+                <Route path="/ajouter" element={<AjouterCandidature />} />
+                <Route path="/modifier/:id" element={<ModifierCandidature />} />
+                <Route path="/templates" element={<Templates />} />
+                <Route path="/linkedin" element={<LinkedInIntegration />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Route>
+            )}
           </>
         )}
       </Routes>

@@ -1,13 +1,18 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Mail, Lock, UserPlus, Sparkles, AlertCircle, CheckCircle, Eye, EyeOff, RefreshCw, Check, X } from 'lucide-react'
+import { Mail, Lock, UserPlus, Sparkles, AlertCircle, CheckCircle, Eye, EyeOff, RefreshCw, Check, X, User, Phone, MapPin, Globe, Hash } from 'lucide-react'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from '../firebaseConfig'
-import { sendWelcomeEmail, sendAdminNotification } from '../services/emailService'
 import { handleFirebaseError } from '../utils/firebaseErrors'
 
 function Register() {
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [country, setCountry] = useState('')
+  const [city, setCity] = useState('')
+  const [postalCode, setPostalCode] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -104,26 +109,20 @@ function Register() {
       const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password)
       const user = userCredential.user
       
-      // Créer le document utilisateur dans Firestore avec statut "pending"
+      // Créer le document utilisateur dans Firestore avec accès immédiat
       await setDoc(doc(db, 'users', user.uid), {
         email: user.email,
-        status: 'pending', // En attente d'approbation
+        status: 'active',
         role: 'user',
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: phone.trim(),
+        country: country.trim(),
+        city: city.trim(),
+        postalCode: postalCode.trim(),
         createdAt: serverTimestamp(),
-        approvedAt: null,
-        approvedBy: null
-      })
-      
-      // Envoyer l'email de bienvenue à l'utilisateur
-      await sendWelcomeEmail({
-        name: user.email.split('@')[0], // Utilise la partie avant @ comme nom
-        email: user.email
-      })
-      
-      // Envoyer une notification à l'admin
-      await sendAdminNotification({
-        name: user.email.split('@')[0],
-        email: user.email
+        approvedAt: serverTimestamp(),
+        approvedBy: 'self-signup'
       })
       
       setSuccess(true)
@@ -155,7 +154,7 @@ function Register() {
             <h1 className="text-4xl font-bold gradient-text mb-2">
               BeCandidature
             </h1>
-            <p className="text-gray-400">Créez votre compte</p>
+            <p className="text-gray-400">Inscription Étudiant</p>
           </div>
 
           {/* Error message */}
@@ -174,8 +173,8 @@ function Register() {
               <div className="flex items-start space-x-2">
                 <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-green-300">
-                  <div className="font-semibold mb-1">✅ Inscription réussie !</div>
-                  <div className="text-xs">Votre compte est en attente d'approbation. Vous recevrez un email de confirmation.</div>
+                  <div className="font-semibold mb-1">✅ Inscription étudiant réussie !</div>
+                  <div className="text-xs">Votre compte est actif. Vous pouvez vous connecter immédiatement.</div>
                 </div>
               </div>
             </div>
@@ -183,6 +182,129 @@ function Register() {
 
           {/* Register form */}
           <form onSubmit={handleRegister} className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-300" htmlFor="firstName">
+                  Prénom
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-400 group-focus-within:text-purple-400 transition-colors" />
+                  </div>
+                  <input
+                    id="firstName"
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                    placeholder="Prénom"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-300" htmlFor="lastName">
+                  Nom
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-400 group-focus-within:text-purple-400 transition-colors" />
+                  </div>
+                  <input
+                    id="lastName"
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                    placeholder="Nom"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-300" htmlFor="phone">
+                  Téléphone
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Phone className="h-5 w-5 text-gray-400 group-focus-within:text-purple-400 transition-colors" />
+                  </div>
+                  <input
+                    id="phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                    placeholder="+33 6 00 00 00 00"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-300" htmlFor="country">
+                  Pays
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Globe className="h-5 w-5 text-gray-400 group-focus-within:text-purple-400 transition-colors" />
+                  </div>
+                  <input
+                    id="country"
+                    type="text"
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                    placeholder="France"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-300" htmlFor="city">
+                  Ville
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <MapPin className="h-5 w-5 text-gray-400 group-focus-within:text-purple-400 transition-colors" />
+                  </div>
+                  <input
+                    id="city"
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                    placeholder="Paris"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-300" htmlFor="postalCode">
+                  Code postal
+                </label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Hash className="h-5 w-5 text-gray-400 group-focus-within:text-purple-400 transition-colors" />
+                  </div>
+                  <input
+                    id="postalCode"
+                    type="text"
+                    value={postalCode}
+                    onChange={(e) => setPostalCode(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300"
+                    placeholder="75000"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Email field */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-300" htmlFor="email">
@@ -360,6 +482,15 @@ function Register() {
 
           {/* Login link */}
           <div className="mt-6 text-center">
+            <p className="text-sm text-gray-400 mb-1">
+              Vous représentez une école ?{' '}
+              <Link
+                to="/register/ecole"
+                className="text-indigo-400 hover:text-indigo-300 font-semibold transition-colors duration-300"
+              >
+                Inscription École
+              </Link>
+            </p>
             <p className="text-sm text-gray-400">
               Déjà un compte ?{' '}
               <Link 
